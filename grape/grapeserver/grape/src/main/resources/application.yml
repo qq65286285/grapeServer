@@ -48,12 +48,7 @@ spring:
     # url: jdbc:mysql://192.168.22.140:3306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
     username: root
     password: root
-  # Neo4j配置
-  neo4j:
-    uri: bolt://localhost:7687
-    authentication:
-      username: neo4j
-      password: 12345678
+
   # 智谱API配置
   zhijian:
     api:

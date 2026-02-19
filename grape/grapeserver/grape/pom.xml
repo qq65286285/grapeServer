@@ -150,16 +150,7 @@
 			<artifactId>okhttp</artifactId>
 			<version>4.12.0</version>
 		</dependency>
-		<!-- Neo4j支持 -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-neo4j</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.neo4j.driver</groupId>
-			<artifactId>neo4j-java-driver</artifactId>
-			<version>4.4.11</version>
-		</dependency>
+
 		<!-- 文档解析 -->
 		<dependency>
 			<groupId>org.apache.tika</groupId>
