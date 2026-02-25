@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.grape.grape.entity.Cases;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -75,8 +76,11 @@ public class CasesController {
      */
     @GetMapping("getInfo/{id}")
     public Resp getInfo(@PathVariable Integer id) {
-        Cases cases = caseBizService.getCaseById(id);
-        return Resp.ok(cases);
+        Map<String, Object> detail = caseBizService.getCaseDetail(id);
+        if (detail == null) {
+            return Resp.info(404, "测试用例不存在");
+        }
+        return Resp.ok(detail);
     }
 
     /**
@@ -87,6 +91,26 @@ public class CasesController {
     @GetMapping("list")
     public List<Cases> list() {
         return caseBizService.listCases();
+    }
+
+    /**
+     * 根据文件夹ID查询测试用例
+     */
+    @PostMapping("listByFolderId")
+    public Resp listByFolderId(@RequestBody Map<String, Object> params) {
+        if (params != null && params.containsKey("folderId")) {
+            Object folderIdObj = params.get("folderId");
+            if (folderIdObj instanceof Integer) {
+                return Resp.ok(caseBizService.listByFolderId((Integer) folderIdObj));
+            } else if (folderIdObj instanceof String) {
+                try {
+                    return Resp.ok(caseBizService.listByFolderId(Integer.parseInt((String) folderIdObj)));
+                } catch (NumberFormatException e) {
+                    // 忽略类型转换异常
+                }
+            }
+        }
+        return Resp.ok(new ArrayList<>());
     }
 
     /**
@@ -132,5 +156,16 @@ public class CasesController {
     public Resp stats() {
         Map<String, Object> stats = caseBizService.getCaseStats();
         return Resp.ok(stats);
+    }
+
+    /**
+     * 回滚测试用例到指定版本
+     */
+    @PostMapping("rollback")
+    public Resp rollback(@RequestBody Map<String, Integer> params) {
+        if (params != null && params.containsKey("caseId") && params.containsKey("versionId")) {
+            return caseBizService.rollbackToVersion(params.get("caseId"), params.get("versionId"));
+        }
+        return Resp.info(400, "请求参数不能为空，且必须包含caseId和versionId");
     }
 }

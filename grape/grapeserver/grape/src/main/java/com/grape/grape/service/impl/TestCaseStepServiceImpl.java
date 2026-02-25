@@ -54,6 +54,14 @@ public class TestCaseStepServiceImpl extends ServiceImpl<TestCaseStepMapper, Tes
             for (int i = 0; i < steps.size(); i++) {
                 TestCaseStep step = steps.get(i);
                 System.out.println("保存步骤 " + (i + 1) + ": " + step);
+                
+                // 跳过null元素
+                if (step == null) {
+                    System.out.println("步骤 " + (i + 1) + " 为null，跳过");
+                    continue;
+                }
+                
+                step.setId(null); // 清除id，避免主键冲突
                 step.setTestCaseId(testCaseId);
                 step.setStepNumber(i + 1); // 按遍历顺序设置步骤序号，确保顺序正确
                 step.setCreatedAt(currentTime);

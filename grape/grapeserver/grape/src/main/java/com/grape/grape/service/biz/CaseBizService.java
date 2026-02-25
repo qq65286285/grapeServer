@@ -17,6 +17,7 @@ public interface CaseBizService {
     Resp removeCase(Integer id);
     Cases getCaseById(Integer id);
     List<Cases> listCases();
+    List<Cases> listByFolderId(Integer folderId);
     PageResp pageCases(Integer pageNum, Integer pageSize);
     PageResp pageCases(Integer pageNum, Integer pageSize, Map<String, Object> params);
     Map<String, Object> getCaseDetail(Integer id);
