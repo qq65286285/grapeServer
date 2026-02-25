@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>屏幕镜像 (截图流)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .input-group {
+            margin: 20px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.danger {
+            background-color: #f44336;
+        }
+        button.danger:hover {
+            background-color: #da190b;
+        }
+        .video-container {
+            margin-top: 20px;
+            text-align: center;
+            background-color: #000;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        #mirrorImage {
+            max-width: 100%;
+            height: auto;
+            background-color: #000;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+        }
+        .error {
+            background-color: #ffebee;
+            border-left-color: #f44336;
+        }
+        .info {
+            background-color: #e3f2fd;
+            border-left-color: #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>屏幕镜像 (截图流方式)</h1>
+
+        <div class="input-group">
+            <label for="deviceId">设备ID:</label>
+            <input type="text" id="deviceId" placeholder="例如: R5CT231WGSV" value="R5CT231WGSV">
+        </div>
+
+        <button onclick="connectWebSocket()">连接镜像</button>
+        <button onclick="disconnectWebSocket()" class="danger">断开连接</button>
+
+        <div class="video-container">
+            <img id="mirrorImage" alt="屏幕镜像" style="display:none;">
+            <div id="placeholder" style="color: white; padding: 100px 20px;">
+                请点击"连接镜像"开始
+            </div>
+        </div>
+
+        <div id="status" class="status">
+            状态: 未连接 | FPS: 0
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let img = document.getElementById('mirrorImage');
+        let placeholder = document.getElementById('placeholder');
+        let statusDiv = document.getElementById('status');
+        let frameCount = 0;
+        let lastTime = Date.now();
+        let fps = 0;
+
+        function connectWebSocket() {
+            let deviceId = document.getElementById('deviceId').value;
+            if (!deviceId) {
+                updateStatus('请输入设备ID', 'error');
+                return;
+            }
+
+            const wsUrl = `ws://${window.location.host}/api/screenshot/${deviceId}`;
+            console.log('连接WebSocket:', wsUrl);
+
+            updateStatus(`正在连接: ${wsUrl}`, 'info');
+
+            ws = new WebSocket(wsUrl);
+            ws.binaryType = 'arraybuffer';
+
+            ws.onopen = function() {
+                updateStatus('连接成功，正在接收屏幕镜像...', 'info');
+                placeholder.style.display = 'none';
+                img.style.display = 'block';
+            };
+
+            ws.onmessage = function(event) {
+                if (event.data instanceof ArrayBuffer) {
+                    // 将二进制数据转换为 Blob
+                    const blob = new Blob([event.data], {type: 'image/png'});
+                    const url = URL.createObjectURL(blob);
+
+                    // 释放旧的 URL
+                    if (img.src && img.src.startsWith('blob:')) {
+                        URL.revokeObjectURL(img.src);
+                    }
+
+                    // 更新图片
+                    img.src = url;
+
+                    // 计算 FPS
+                    frameCount++;
+                    const now = Date.now();
+                    if (now - lastTime >= 1000) {
+                        fps = frameCount;
+                        frameCount = 0;
+                        lastTime = now;
+                    }
+
+                    updateStatus(`镜像中 | FPS: ${fps}`, 'info');
+                }
+            };
+
+            ws.onerror = function(error) {
+                updateStatus(`连接错误`, 'error');
+                console.error('WebSocket错误:', error);
+            };
+
+            ws.onclose = function(event) {
+                updateStatus(`连接已关闭: ${event.code}`, 'error');
+                console.log('WebSocket连接关闭:', event);
+            };
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                updateStatus('连接已断开');
+            }
+
+            img.style.display = 'none';
+            placeholder.style.display = 'block';
+            if (img.src && img.src.startsWith('blob:')) {
+                URL.revokeObjectURL(img.src);
+            }
+            img.src = '';
+        }
+
+        function updateStatus(message, type = 'normal') {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status';
+            if (type === 'error') {
+                statusDiv.classList.add('error');
+            } else if (type === 'info') {
+                statusDiv.classList.add('info');
+            }
+        }
+    </script>
+</body>
+</html>

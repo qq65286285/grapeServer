@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>屏幕镜像 (原生 Video)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .input-group {
+            margin: 20px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.danger {
+            background-color: #f44336;
+        }
+        button.danger:hover {
+            background-color: #da190b;
+        }
+        .video-container {
+            margin-top: 20px;
+            text-align: center;
+            background-color: #000;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        video {
+            max-width: 100%;
+            height: auto;
+            background-color: #000;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+        }
+        .error {
+            background-color: #ffebee;
+            border-left-color: #f44336;
+        }
+        .info {
+            background-color: #e3f2fd;
+            border-left-color: #2196F3;
+        }
+        .debug-info {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>屏幕镜像 (原生 Video 元素)</h1>
+
+        <div class="input-group">
+            <label for="deviceId">设备ID:</label>
+            <input type="text" id="deviceId" placeholder="例如: R5CT231WGSV" value="R5CT231WGSV">
+        </div>
+
+        <button onclick="connectWebSocket()">连接镜像</button>
+        <button onclick="disconnectWebSocket()" class="danger">断开连接</button>
+
+        <div class="video-container">
+            <video id="mirrorVideo" controls autoplay muted playsinline style="display:none;">
+                您的浏览器不支持视频播放
+            </video>
+            <div id="placeholder" style="color: white; padding: 100px 20px;">
+                请点击"连接镜像"开始
+            </div>
+        </div>
+
+        <div id="status" class="status">
+            状态: 未连接
+        </div>
+
+        <div class="debug-info" id="debugInfo">
+            调试信息：
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let video = document.getElementById('mirrorVideo');
+        let placeholder = document.getElementById('placeholder');
+        let statusDiv = document.getElementById('status');
+        let debugInfo = document.getElementById('debugInfo');
+        let mediaSource = null;
+        let sourceBuffer = null;
+        let chunks = [];
+        let isAppending = false;
+
+        function addDebugLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugInfo.innerHTML += `\n[${timestamp}] ${message}`;
+            debugInfo.scrollTop = debugInfo.scrollHeight;
+        }
+
+        function connectWebSocket() {
+            let deviceId = document.getElementById('deviceId').value;
+            if (!deviceId) {
+                updateStatus('请输入设备ID', 'error');
+                return;
+            }
+
+            // 构建WebSocket连接URL
+            const wsUrl = `ws://${window.location.host}/screen/${deviceId}`;
+            console.log('连接WebSocket:', wsUrl);
+            addDebugLog(`连接WebSocket: ${wsUrl}`);
+
+            updateStatus(`正在连接: ${wsUrl}`, 'info');
+
+            // 重置
+            chunks = [];
+            isAppending = false;
+
+            // 连接WebSocket
+            ws = new WebSocket(wsUrl);
+            ws.binaryType = 'arraybuffer';
+
+            ws.onopen = function() {
+                updateStatus('WebSocket 连接成功，正在等待视频流...', 'info');
+                addDebugLog('WebSocket 连接成功');
+
+                // 初始化 MediaSource
+                initMediaSource();
+            };
+
+            ws.onmessage = function(event) {
+                if (event.data instanceof ArrayBuffer) {
+                    const dataSize = event.data.byteLength;
+                    addDebugLog(`收到视频数据: ${dataSize} bytes`);
+
+                    // 将数据添加到队列
+                    chunks.push(new Uint8Array(event.data));
+
+                    // 尝试添加到 SourceBuffer
+                    appendChunk();
+                }
+            };
+
+            ws.onerror = function(error) {
+                updateStatus(`WebSocket 连接错误`, 'error');
+                addDebugLog(`WebSocket 错误: ${error}`);
+                console.error('WebSocket错误:', error);
+            };
+
+            ws.onclose = function(event) {
+                updateStatus(`连接已关闭: ${event.code} - ${event.reason}`, 'error');
+                addDebugLog(`连接关闭: ${event.code} - ${event.reason}`);
+                console.log('WebSocket连接关闭:', event);
+
+                // 结束 MediaSource
+                if (mediaSource && mediaSource.readyState === 'open') {
+                    mediaSource.endOfStream();
+                }
+            };
+        }
+
+        function initMediaSource() {
+            addDebugLog('初始化 MediaSource');
+
+            // 检查浏览器支持
+            if (!window.MediaSource) {
+                updateStatus('浏览器不支持 MediaSource API', 'error');
+                addDebugLog('错误: 浏览器不支持 MediaSource API');
+                return;
+            }
+
+            mediaSource = new MediaSource();
+            video.src = URL.createObjectURL(mediaSource);
+
+            mediaSource.addEventListener('sourceopen', function() {
+                addDebugLog('MediaSource 已打开');
+
+                // 尝试多种编码格式
+                const codecs = [
+                    'video/webm; codecs="vp8"',
+                    'video/webm; codecs="vp9"',
+                    'video/webm; codecs="avc1.42E01E"',
+                    'video/mp4; codecs="avc1.42E01E"',
+                    'video/mp4; codecs="avc1.64001E"'
+                ];
+
+                let selectedCodec = null;
+                for (let codec of codecs) {
+                    if (MediaSource.isTypeSupported(codec)) {
+                        selectedCodec = codec;
+                        addDebugLog(`支持的编码: ${codec}`);
+                        break;
+                    }
+                }
+
+                if (!selectedCodec) {
+                    updateStatus('浏览器不支持所需的视频编码格式', 'error');
+                    addDebugLog('错误: 没有找到支持的编码格式');
+                    return;
+                }
+
+                try {
+                    sourceBuffer = mediaSource.addSourceBuffer(selectedCodec);
+                    addDebugLog(`创建 SourceBuffer 成功: ${selectedCodec}`);
+
+                    sourceBuffer.addEventListener('updateend', function() {
+                        isAppending = false;
+                        appendChunk();
+                    });
+
+                    sourceBuffer.addEventListener('error', function(e) {
+                        addDebugLog(`SourceBuffer 错误: ${e}`);
+                        updateStatus('视频解码错误', 'error');
+                    });
+
+                    updateStatus('MediaSource 初始化成功，等待视频数据...', 'info');
+
+                    // 显示视频元素
+                    placeholder.style.display = 'none';
+                    video.style.display = 'block';
+
+                } catch (e) {
+                    addDebugLog(`创建 SourceBuffer 失败: ${e}`);
+                    updateStatus(`MediaSource 初始化失败: ${e.message}`, 'error');
+                }
+            });
+
+            mediaSource.addEventListener('sourceended', function() {
+                addDebugLog('MediaSource 已结束');
+            });
+
+            mediaSource.addEventListener('sourceclose', function() {
+                addDebugLog('MediaSource 已关闭');
+            });
+        }
+
+        function appendChunk() {
+            if (!sourceBuffer || isAppending || chunks.length === 0) {
+                return;
+            }
+
+            if (sourceBuffer.updating) {
+                return;
+            }
+
+            isAppending = true;
+            const chunk = chunks.shift();
+
+            try {
+                addDebugLog(`添加视频块: ${chunk.byteLength} bytes`);
+                sourceBuffer.appendBuffer(chunk);
+
+                // 更新状态
+                if (video.paused) {
+                    video.play().catch(e => {
+                        addDebugLog(`自动播放失败: ${e.message}`);
+                    });
+                }
+                updateStatus(`视频播放中 (缓冲区: ${chunks.length} 块)`, 'info');
+            } catch (e) {
+                addDebugLog(`添加视频块失败: ${e.message}`);
+                isAppending = false;
+                // 重新加入队列
+                chunks.unshift(chunk);
+            }
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                updateStatus('连接已断开');
+                addDebugLog('手动断开连接');
+            }
+
+            // 重置视频
+            if (video) {
+                video.pause();
+                video.src = '';
+                video.style.display = 'none';
+                placeholder.style.display = 'block';
+            }
+
+            chunks = [];
+            isAppending = false;
+            mediaSource = null;
+            sourceBuffer = null;
+        }
+
+        function updateStatus(message, type = 'normal') {
+            statusDiv.textContent = `状态: ${message}`;
+            statusDiv.className = 'status';
+            if (type === 'error') {
+                statusDiv.classList.add('error');
+            } else if (type === 'info') {
+                statusDiv.classList.add('info');
+            }
+        }
+    </script>
+</body>
+</html>
