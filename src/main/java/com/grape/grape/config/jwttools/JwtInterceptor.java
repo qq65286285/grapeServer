@@ -20,7 +20,7 @@ public class JwtInterceptor implements HandlerInterceptor {
         System.out.println("请求路径: " + requestURI);
         
         // 豁免路径：不需要校验token的接口
-        if (requestURI.startsWith("/api/user/register") || requestURI.startsWith("/api/auth/login") || requestURI.startsWith("/api/captcha/") || requestURI.startsWith("/auth/login") || requestURI.startsWith("/regedit") || requestURI.startsWith("/api/regedit") || requestURI.startsWith("/api/mirror/") || requestURI.startsWith("/screen/") || requestURI.startsWith("/api/screen/") || requestURI.equals("/api/screen-mirror.html") || requestURI.startsWith("/api/ai/") || requestURI.equals("/ws") || requestURI.startsWith("/api/upload") || requestURI.equals("/api/error") || requestURI.startsWith("/api/public")) {
+        if (requestURI.equals("/api/") || requestURI.equals("/api") || requestURI.startsWith("/api/user/register") || requestURI.startsWith("/api/auth/login") || requestURI.startsWith("/api/captcha/") || requestURI.startsWith("/auth/login") || requestURI.startsWith("/regedit") || requestURI.startsWith("/api/regedit") || requestURI.startsWith("/api/mirror/") || requestURI.startsWith("/screen/") || requestURI.startsWith("/api/screen/") || requestURI.equals("/api/screen-mirror.html") || requestURI.startsWith("/api/ai/") || requestURI.equals("/ws") || requestURI.startsWith("/api/upload") || requestURI.equals("/api/error") || requestURI.startsWith("/api/public")) {
             System.out.println("豁免路径，直接放行: " + requestURI);
             return true;
         }

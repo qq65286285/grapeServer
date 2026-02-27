@@ -51,7 +51,7 @@ public class WebSocketController extends TextWebSocketHandler {
                 // 响应心跳消息
                 session.sendMessage(new TextMessage("{\"type\": \"pong\"}"));
                 System.out.println("响应心跳消息: " + session.getId());
-            } else if (payload.contains("ask_question")) {
+            } else if (payload.contains("ai_chat") || payload.contains("test_case_generator")) {
                 // 处理AI问题请求
                 handleAskQuestion(payload);
             }
@@ -66,29 +66,117 @@ public class WebSocketController extends TextWebSocketHandler {
      */
     private void handleAskQuestion(String payload) {
         try {
-            // 解析消息，获取问题内容
+            // 解析消息，获取问题内容和服务类型
             com.alibaba.fastjson.JSONObject jsonObject = com.alibaba.fastjson.JSONObject.parseObject(payload);
+            String serviceType = jsonObject.getString("type");
             String question = jsonObject.getString("question");
+            
+            // 验证服务类型
+            if (!"ai_chat".equals(serviceType) && !"test_case_generator".equals(serviceType)) {
+                serviceType = "test_case_generator";
+            }
+            
+            // 处理test_case_generator类型的消息，从data字段获取参数
+            if ("test_case_generator".equals(serviceType) && question == null && jsonObject.containsKey("data")) {
+                // 从data字段获取测试用例生成参数
+                com.alibaba.fastjson.JSONObject data = jsonObject.getJSONObject("data");
+                // 构建提示词
+                question = buildTestCasePrompt(data);
+            }
             
             if (question != null && !question.isEmpty()) {
                 System.out.println("处理AI问题: " + question);
+                System.out.println("服务类型: " + serviceType);
                 
                 // 创建角色内容对象
                 com.grape.grape.entity.dto.RoleContent roleContent = new com.grape.grape.entity.dto.RoleContent();
                 roleContent.setRole("user");
                 roleContent.setContent(question);
                 
-                // 调用B_WsXModel处理AI请求
-                wsXModel.initWebSocket(roleContent);
+                // 调用B_WsXModel处理AI请求，传递服务类型
+                wsXModel.initWebSocket(roleContent, serviceType);
                 
-                // 发送处理中消息
-                broadcast("{\"type\": \"ai_response\", \"data\": \"正在处理您的问题，请稍候...\"}");
+                // 不发送处理中消息，直接等待AI返回结果
             }
         } catch (Exception e) {
             e.printStackTrace();
             // 发送错误消息
-            broadcast("{\"type\": \"ai_error\", \"data\": \"处理问题时出错: " + e.getMessage() + "\"}");
+            broadcast("{\"service\": \"test_case_generator\", \"type\": \"ai_error\", \"data\": \"处理问题时出错: " + e.getMessage() + "\"}");
         }
+    }
+    
+    /**
+     * 构建测试用例生成提示词
+     * @param data 测试用例生成参数
+     * @return 构建好的提示词
+     */
+    private String buildTestCasePrompt(com.alibaba.fastjson.JSONObject data) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("你是一位专业的测试用例生成助手，根据以下需求生成高质量的测试用例。\n");
+        sb.append("\n[需求信息]\n");
+        sb.append("模块: " + data.getString("module") + "\n");
+        sb.append("用户故事: " + data.getString("userStory") + "\n");
+        sb.append("验收标准: " + data.getString("acceptanceCriteria") + "\n");
+        sb.append("边界条件: " + data.getString("boundaryConditions") + "\n");
+        sb.append("相关模块: " + data.getString("relatedModules") + "\n");
+        
+        // 处理测试维度数组
+        if (data.containsKey("testDimensions")) {
+            com.alibaba.fastjson.JSONArray testDimensions = data.getJSONArray("testDimensions");
+            sb.append("测试维度: " + String.join(", ", testDimensions.toJavaList(String.class)) + "\n");
+        }
+        
+        sb.append("用例类型: " + data.getString("caseType") + "\n");
+        sb.append("\n[生成要求]\n");
+        sb.append("用例数量: " + data.getInteger("caseCount") + "\n");
+        sb.append("生成模式: " + data.getString("generateMode") + "\n");
+        sb.append("用例模板: " + data.getString("caseTemplate") + "\n");
+        
+        // 处理覆盖要求数组
+        if (data.containsKey("coverageRequirements")) {
+            com.alibaba.fastjson.JSONArray coverageRequirements = data.getJSONArray("coverageRequirements");
+            sb.append("覆盖要求: " + String.join(", ", coverageRequirements.toJavaList(String.class)) + "\n");
+        }
+        
+        sb.append("\n重要要求：请严格以JSON格式返回生成的测试用例列表，不要添加任何额外的说明文字或格式。\n");
+        sb.append("JSON格式要求：\n");
+        sb.append("1. 根节点必须是一个包含test_cases字段的对象\n");
+        sb.append("2. test_cases字段是一个数组，包含多个测试用例对象\n");
+        sb.append("3. 每个测试用例对象必须包含case_id、title、steps和expected四个字段\n");
+        sb.append("4. case_id字段是测试用例的唯一标识，格式为字符串\n");
+        sb.append("5. title字段是测试用例的标题，格式为字符串\n");
+        sb.append("6. steps字段是测试步骤的数组，每个元素是一个字符串\n");
+        sb.append("7. expected字段是预期结果，格式为字符串\n");
+        sb.append("\n示例：\n");
+        sb.append("{\n");
+        sb.append("  \"test_cases\": [\n");
+        sb.append("    {\n");
+        sb.append("      \"case_id\": \"1\",\n");
+        sb.append("      \"title\": \"正常创建月度规划单并添加明细\",\n");
+        sb.append("      \"steps\": [\n");
+        sb.append("        \"1. 登录系统，进入月度规划模块\",\n");
+        sb.append("        \"2. 点击【新建规划单】，填写有效月份（如2023-10）和负责人\",\n");
+        sb.append("        \"3. 保存规划单，确认状态变为【已生效】\",\n");
+        sb.append("        \"4. 在规划单详情页点击【添加明细】，输入符合时间范围的业务数据\",\n");
+        sb.append("        \"5. 重复步骤4添加多条明细，总数量不超过系统预设上限\"\n");
+        sb.append("      ],\n");
+        sb.append("      \"expected\": \"规划单保存成功，所有明细均显示在对应规划单下，无审批流程触发\"\n");
+        sb.append("    },\n");
+        sb.append("    {\n");
+        sb.append("      \"case_id\": \"2\",\n");
+        sb.append("      \"title\": \"明细数量达到规划单上限\",\n");
+        sb.append("      \"steps\": [\n");
+        sb.append("        \"1. 创建规划单时设置明细数量上限为10条\",\n");
+        sb.append("        \"2. 连续添加10条有效明细\",\n");
+        sb.append("        \"3. 尝试添加第11条明细\"\n");
+        sb.append("      ],\n");
+        sb.append("      \"expected\": \"前10条明细保存成功，第11条提交时提示'超出规划单容量限制'\"\n");
+        sb.append("    }\n");
+        sb.append("  ]\n");
+        sb.append("}\n");
+        sb.append("\n请严格按照上述JSON格式生成测试用例，不要添加任何额外的内容。");
+        
+        return sb.toString();
     }
 
     /**

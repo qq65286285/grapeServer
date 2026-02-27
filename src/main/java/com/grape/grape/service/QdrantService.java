@@ -25,12 +25,12 @@ public class QdrantService {
      * 构造函数
      * @param host Qdrant主机地址
      * @param port Qdrant端口
-     * @param apiKey Qdrant API密钥
+     * @param apiKey Qdrant API密钥（可选）
      */
     public QdrantService(
             @Value("${qdrant.host}") String host,
             @Value("${qdrant.port}") int port,
-            @Value("${qdrant.api-key}") String apiKey) {
+            @Value("${qdrant.api-key:}") String apiKey) {
         this.restTemplate = new RestTemplate();
         this.baseUrl = "http://" + host + ":" + port;
         this.apiKey = apiKey;
@@ -60,7 +60,7 @@ public class QdrantService {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
             return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
-            e.printStackTrace();
+            // 健康检查失败，返回 false
             return false;
         }
     }
@@ -87,7 +87,7 @@ public class QdrantService {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
             return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
-            e.printStackTrace();
+            // 创建集合失败，返回 false
             return false;
         }
     }
@@ -105,7 +105,7 @@ public class QdrantService {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
             return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
-            e.printStackTrace();
+            // 插入失败，返回 false
             return false;
         }
     }
@@ -123,7 +123,7 @@ public class QdrantService {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
             return response.getBody();
         } catch (Exception e) {
-            e.printStackTrace();
+            // 搜索失败，返回 null
             return null;
         }
     }
@@ -140,7 +140,7 @@ public class QdrantService {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
             return response.getBody();
         } catch (Exception e) {
-            e.printStackTrace();
+            // 集合不存在或获取失败，返回 null
             return null;
         }
     }
@@ -157,7 +157,7 @@ public class QdrantService {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, entity, String.class);
             return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
-            e.printStackTrace();
+            // 删除失败，返回 false
             return false;
         }
     }
@@ -175,7 +175,7 @@ public class QdrantService {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, entity, String.class);
             return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
-            e.printStackTrace();
+            // 删除失败，返回 false
             return false;
         }
     }

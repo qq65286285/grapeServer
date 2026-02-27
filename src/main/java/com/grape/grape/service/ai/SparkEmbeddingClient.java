@@ -3,16 +3,20 @@ package com.grape.grape.service.ai;
 import okhttp3.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.*;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import com.grape.grape.service.ai.config.ConfigVectorUtil;
 
 @Service
 public class SparkEmbeddingClient {
     private static final Logger logger = LoggerFactory.getLogger(SparkEmbeddingClient.class);
-    private static final String API_URL = "https://spark-api-open.xf-yun.com/v2/embeddings";
+    private static final String API_URL = "https://emb-cn-huabei-1.xf-yun.com/";
     
     @Value("${xfyun.spark-emb.appid}")
     private String appId;
@@ -23,158 +27,148 @@ public class SparkEmbeddingClient {
     @Value("${xfyun.spark-emb.api-secret}")
     private String apiSecret;
     
+    @Autowired
+    ConfigVectorUtil configVectorUtil;
+
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     // 无参构造函数（用于Spring依赖注入）
     public SparkEmbeddingClient() {
+        this.configVectorUtil = null;
+        this.httpClient = new OkHttpClient();
+        this.objectMapper = new ObjectMapper();
+    }
+
+    // 构造函数（用于Spring依赖注入）
+    public SparkEmbeddingClient(ConfigVectorUtil configVectorUtil) {
+        this.configVectorUtil = configVectorUtil;
+        this.httpClient = new OkHttpClient();
+        this.objectMapper = new ObjectMapper();
+    }
+
+    // 四参构造函数（用于兼容现有代码）
+    public SparkEmbeddingClient(String appId, String apiKey, String apiSecret, ConfigVectorUtil configVectorUtil) {
+        this.appId = appId;
+        this.apiKey = apiKey;
+        this.apiSecret = apiSecret;
+        this.configVectorUtil = configVectorUtil;
         this.httpClient = new OkHttpClient();
         this.objectMapper = new ObjectMapper();
     }
 
     // 三参构造函数（用于兼容现有代码）
     public SparkEmbeddingClient(String appId, String apiKey, String apiSecret) {
+        this.appId = appId;
         this.apiKey = apiKey;
+        this.apiSecret = apiSecret;
+        this.configVectorUtil = null;
         this.httpClient = new OkHttpClient();
         this.objectMapper = new ObjectMapper();
     }
 
     // 获取文本的向量表示
-    public List<Double> getEmbedding(String text) throws IOException {
-        logger.info("=== Spark Embedding Client ===");
-        logger.info("AppId: {}", appId);
-        logger.info("ApiKey: {}", apiKey);
-        logger.info("ApiSecret: {}", apiSecret);
-        logger.info("API URL: {}", API_URL);
-        logger.info("Text length: {}", text.length());
+    public List<Double> getEmbedding(String text) throws Exception {
         
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", "text-embedding-3-small"); // 使用文本嵌入模型
-        requestBody.put("input", text);
-        requestBody.put("encoding_format", "float");
-
-        // 生成认证头
-        String requestBodyStr = objectMapper.writeValueAsString(requestBody);
-        
-        // 科大讯飞API认证需要的参数
-        long timestamp = System.currentTimeMillis() / 1000;
-        String host = "spark-api-open.xf-yun.com";
-        String path = "/v2/embeddings";
-        String method = "POST";
-        String contentType = "application/json";
-        
-        // 计算请求体的摘要
-        String digest = null;
-        String signature = null;
-        try {
-            digest = calculateDigest(requestBodyStr);
-            
-            // 构建签名源字符串（严格按照科大讯飞的要求）
-            String signatureOrigin = String.format(
-                "host:%s\ndate:%d\n%s %s HTTP/1.1\ndigest:%s\ncontent-type:%s",
-                host, timestamp, method, path, digest, contentType
-            );
-            
-            logger.info("Signature origin: {}", signatureOrigin);
-            
-            // 生成HMAC SHA256签名
-            signature = calculateHmacSHA256(signatureOrigin, apiSecret);
-        } catch (Exception e) {
-            logger.error("Error generating signature: {}", e.getMessage(), e);
-            throw new IOException("Error generating signature", e);
+        // 检查 configVectorUtil 是否初始化
+        if (configVectorUtil == null) {
+            throw new IllegalStateException("ConfigVectorUtil not initialized. Please use the constructor with ConfigVectorUtil parameter.");
         }
         
-        logger.info("Generated signature: {}", signature);
+        // 使用 ConfigVectorUtil 生成认证 URL
+        String path = "/";
+        String authUrl = configVectorUtil.generateAuthUrl(path);
+        logger.info("Auth URL: {}", authUrl);
         
-        // 构建Authorization头
-        String authorization = String.format(
-            "api_key=%s, algorithm=hmac-sha256, headers=host date request-line digest content-type, signature=%s",
-            apiKey, signature
-        );
+        // 构建请求体
+        Map<String, Object> requestBody = new HashMap<>();
         
-        logger.info("Generated Authorization header: {}", authorization);
+        // 构建header
+        Map<String, Object> header = new HashMap<>();
+        header.put("app_id", appId);
+        header.put("uid", String.valueOf(System.nanoTime()));
+        header.put("status", 3);
+        requestBody.put("header", header);
+        
+        // 构建parameter
+        Map<String, Object> parameter = new HashMap<>();
+        Map<String, Object> emb = new HashMap<>();
+        emb.put("domain", "para"); // 使用para模式进行向量化
+        Map<String, Object> feature = new HashMap<>();
+        feature.put("encoding", "utf8");
+        emb.put("feature", feature);
+        parameter.put("emb", emb);
+        requestBody.put("parameter", parameter);
+        
+        // 构建payload
+        Map<String, Object> payload = new HashMap<>();
+        Map<String, Object> messages = new HashMap<>();
+        // 构建与参考文件一致的消息格式
+        try {
+            // 构建消息对象，与参考文件保持一致
+            Map<String, Object> messageObj = new HashMap<>();
+            Map<String, Object> message = new HashMap<>();
+            message.put("content", text);
+            message.put("role", "user");
+            messageObj.put("messages", java.util.Collections.singletonList(message));
+            
+            // 将消息对象转换为JSON字符串，然后进行base64编码
+            String textJson = objectMapper.writeValueAsString(messageObj);
+            String encodedText = java.util.Base64.getEncoder().encodeToString(textJson.getBytes("UTF-8"));
+            messages.put("text", encodedText);
+        } catch (Exception e) {
+            logger.error("Error encoding text: {}", e.getMessage(), e);
+            throw new IOException("Error encoding text", e);
+        }
+        payload.put("messages", messages);
+        requestBody.put("payload", payload);
+
+        // 生成请求体字符串
+        String requestBodyStr = objectMapper.writeValueAsString(requestBody);
         
         // 构建请求
         Request request = new Request.Builder()
-                .url(API_URL)
-                .header("Host", host)
-                .header("Date", String.valueOf(timestamp))
-                .header("Content-Type", contentType)
-                .header("Digest", digest)
-                .header("Authorization", authorization)
-                .header("X-Request-ID", java.util.UUID.randomUUID().toString())
+                .url(authUrl)
+                .header("Content-Type", "application/json")
                 .post(RequestBody.create(
                         requestBodyStr,
                         MediaType.get("application/json")
                 ))
                 .build();
 
-        logger.info("Sending request to: {}", API_URL);
-        logger.info("Request headers: {}", request.headers());
+        // 输出请求日志
+        logger.info("**********************");
+        logger.info("请求url：{}", authUrl);
+        logger.info("请求header：{}", request.headers());
+        logger.info("请求入参：{}", requestBodyStr);
         
         return sendRequest(request);
-    }
-    
-    // 计算请求体的摘要
-    private String calculateDigest(String requestBody) throws Exception {
-        java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
-        byte[] hash = md.digest(requestBody.getBytes("UTF-8"));
-        return "SHA-256=" + java.util.Base64.getEncoder().encodeToString(hash);
-    }
-    
-    // 计算HMAC SHA256签名
-    private String calculateHmacSHA256(String data, String key) throws Exception {
-        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-        javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(key.getBytes("UTF-8"), "HmacSHA256");
-        mac.init(secretKeySpec);
-        byte[] hmacHash = mac.doFinal(data.getBytes("UTF-8"));
-        return java.util.Base64.getEncoder().encodeToString(hmacHash);
     }
     
     // 发送请求并处理响应
     private List<Double> sendRequest(Request request) throws IOException {
         try (Response response = httpClient.newCall(request).execute()) {
-            logger.info("Response code: {}", response.code());
-            logger.info("Response message: {}", response.message());
-            logger.info("Response headers: {}", response.headers());
+            int responseCode = response.code();
+            String responseBody = response.body() != null ? response.body().string() : "No response body";
+            
+            // 输出响应日志
+            logger.info("请求结果：code = {}", responseCode);
+            logger.info("请求返回：{}", responseBody);
+            logger.info("*******************");
             
             if (!response.isSuccessful()) {
-                String errorBody = response.body() != null ? response.body().string() : "No error body";
-                logger.error("Error response body: {}", errorBody);
-                throw new IOException("Unexpected code: " + response + ", Body: " + errorBody);
+                throw new IOException("Unexpected code: " + response + ", Body: " + responseBody);
             }
             
-            String jsonBody = response.body().string();
-            logger.info("Response body length: {}", jsonBody.length());
-            logger.info("Response body (first 500 chars): {}", jsonBody.substring(0, Math.min(500, jsonBody.length())));
-            
-            return parseEmbeddingResponse(jsonBody);
+            return parseEmbeddingResponse(responseBody);
         } catch (Exception e) {
             logger.error("Error in sendRequest: {}", e.getMessage(), e);
             throw e;
         }
     }
-    
-
-    
-    // 计算请求体的摘要
-    private String getDigest(String requestBody) throws Exception {
-        java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
-        byte[] hash = digest.digest(requestBody.getBytes("UTF-8"));
-        return java.util.Base64.getEncoder().encodeToString(hash);
-    }
-    
-    // 生成HMAC SHA256签名
-    private String hmacSHA256(String data, String key) throws Exception {
-        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-        javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(key.getBytes("UTF-8"), "HmacSHA256");
-        mac.init(secretKeySpec);
-        byte[] hash = mac.doFinal(data.getBytes("UTF-8"));
-        return java.util.Base64.getEncoder().encodeToString(hash);
-    }
 
     // 生成文档向量（用于兼容现有代码）
-    public float[] getEmbeddingPara(String text) throws IOException {
+    public float[] getEmbeddingPara(String text) throws Exception {
         List<Double> embedding = getEmbedding(text);
         float[] vector = new float[embedding.size()];
         for (int i = 0; i < embedding.size(); i++) {
@@ -184,7 +178,7 @@ public class SparkEmbeddingClient {
     }
 
     // 生成查询向量（用于兼容现有代码）
-    public float[] getEmbeddingQuery(String text) throws IOException {
+    public float[] getEmbeddingQuery(String text) throws Exception {
         return getEmbeddingPara(text);
     }
 

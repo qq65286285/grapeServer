@@ -6,6 +6,7 @@ import com.grape.grape.service.QdrantService;
 import com.grape.grape.service.ai.B_WsXModel;
 import com.grape.grape.service.ai.SparkHttpClient;
 import com.grape.grape.service.ai.SparkEmbeddingClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
@@ -33,9 +34,25 @@ public class AiBizServiceImpl implements AiBizService {
 
     @Autowired
     private SparkEmbeddingClient sparkEmbeddingClient;
+    
+    private final ObjectMapper objectMapper;
+    
+    public AiBizServiceImpl() {
+        this.objectMapper = new ObjectMapper();
+    }
 
     @Override
     public Map<String, Object> callSpark(String question) {
+        return callSpark(question, "ai_chat");
+    }
+    
+    /**
+     * 调用科大讯飞Spark API，指定服务类型
+     * @param question 用户问题
+     * @param serviceType 服务类型
+     * @return 响应结果
+     */
+    public Map<String, Object> callSpark(String question, String serviceType) {
         Map<String, Object> response = new HashMap<>();
         try {
             if (question == null || question.isEmpty()) {
@@ -49,8 +66,8 @@ public class AiBizServiceImpl implements AiBizService {
             roleContent.setRole("user");
             roleContent.setContent(question);
 
-            // 调用WebSocket初始化方法
-            bWsXModel.initWebSocket(roleContent);
+            // 调用WebSocket初始化方法，指定服务类型
+            bWsXModel.initWebSocket(roleContent, serviceType);
 
             // 注意：由于WebSocket是异步通信，这里无法直接返回结果
             // 实际应用中，需要通过WebSocket或其他方式将结果推送给前端
@@ -90,10 +107,9 @@ public class AiBizServiceImpl implements AiBizService {
                     searchRequest.put("limit", request.getCaseCount());
                     searchRequest.put("score_threshold", request.getSimilarityThreshold());
 
-                    String searchResult = qdrantService.searchPoints("test_cases", searchRequest);
+                    String searchResult = qdrantService.searchPoints("test_case_memory", searchRequest);
                     if (searchResult != null) {
                         // 解析搜索结果，获取top N条相似用例作为参考
-                        // 这里简化处理，实际需要解析JSON结果
                         referenceCases = parseSearchResult(searchResult);
                     }
                 }
@@ -103,10 +119,21 @@ public class AiBizServiceImpl implements AiBizService {
             String prompt = buildPrompt(request, referenceCases);
 
             // 4. 调用AI模型API
-            String aiResponse = sparkHttpClient.sendSyncRequest(prompt);
+            // 使用callSpark方法通过WebSocket发送提示词到AI，指定服务类型为test_case_generator
+            Map<String, Object> aiResponse = callSpark(prompt, "test_case_generator");
 
             // 5. 解析AI返回的JSON结果
-            List<Map<String, Object>> generatedCases = parseAIResponse(aiResponse);
+            // 由于WebSocket是异步的，这里返回AI的响应状态
+            // 实际的测试用例结果会通过WebSocket推送给前端
+            List<Map<String, Object>> generatedCases = new ArrayList<>();
+            
+            // 添加一个提示用例，说明结果会通过WebSocket推送
+            Map<String, Object> infoCase = new HashMap<>();
+            infoCase.put("case_id", "1");
+            infoCase.put("title", "测试用例生成中");
+            infoCase.put("steps", Arrays.asList("提示：测试用例正在生成中", "结果将通过WebSocket推送给前端"));
+            infoCase.put("expected", "请等待WebSocket推送的测试用例结果");
+            generatedCases.add(infoCase);
 
             // 6. 返回生成的用例列表
             response.put("code", 200);
@@ -137,31 +164,66 @@ public class AiBizServiceImpl implements AiBizService {
      */
     private String buildPrompt(TestCaseGenerateRequest request, List<Map<String, Object>> referenceCases) {
         StringBuilder sb = new StringBuilder();
-        sb.append("You are a professional test case generation assistant, generate high-quality test cases based on the following requirements.\n");
-        sb.append("\n[Requirement Information]\n");
-        sb.append("Module: " + request.getModule()).append("\n");
-        sb.append("User Story: " + request.getUserStory()).append("\n");
-        sb.append("Acceptance Criteria: " + request.getAcceptanceCriteria()).append("\n");
-        sb.append("Boundary Conditions: " + request.getBoundaryConditions()).append("\n");
-        sb.append("Related Modules: " + request.getRelatedModules()).append("\n");
-        sb.append("Test Dimensions: " + String.join(", ", request.getTestDimensions())).append("\n");
-        sb.append("Case Type: " + request.getCaseType()).append("\n");
+        sb.append("你是一位专业的测试用例生成助手，根据以下需求生成高质量的测试用例。\n");
+        sb.append("\n[需求信息]\n");
+        sb.append("模块: " + request.getModule()).append("\n");
+        sb.append("用户故事: " + request.getUserStory()).append("\n");
+        sb.append("验收标准: " + request.getAcceptanceCriteria()).append("\n");
+        sb.append("边界条件: " + request.getBoundaryConditions()).append("\n");
+        sb.append("相关模块: " + request.getRelatedModules()).append("\n");
+        sb.append("测试维度: " + String.join(", ", request.getTestDimensions())).append("\n");
+        sb.append("用例类型: " + request.getCaseType()).append("\n");
 
         if (!referenceCases.isEmpty()) {
-            sb.append("\n[Reference Cases]\n");
+            sb.append("\n[参考用例]\n");
             for (int i = 0; i < referenceCases.size(); i++) {
                 Map<String, Object> caseMap = referenceCases.get(i);
-                sb.append("Reference Case " + (i + 1) + ": " + caseMap.get("content")).append("\n");
+                sb.append("参考用例 " + (i + 1) + ": " + caseMap.get("content")).append("\n");
             }
         }
 
-        sb.append("\n[Generation Requirements]\n");
-        sb.append("Case Count: " + request.getCaseCount()).append("\n");
-        sb.append("Generate Mode: " + request.getGenerateMode()).append("\n");
-        sb.append("Case Template: " + request.getCaseTemplate()).append("\n");
-        sb.append("Coverage Requirements: " + String.join(", ", request.getCoverageRequirements())).append("\n");
-        sb.append("\nPlease return the generated test case list strictly in JSON format, example:\n");
-        sb.append("{\"test_cases\": [{\"case_id\": \"1\", \"title\": \"Test Title\", \"steps\": [\"Step 1\", \"Step 2\"], \"expected\": \"Expected Result\"}]}");
+        sb.append("\n[生成要求]\n");
+        sb.append("用例数量: " + request.getCaseCount()).append("\n");
+        sb.append("生成模式: " + request.getGenerateMode()).append("\n");
+        sb.append("用例模板: " + request.getCaseTemplate()).append("\n");
+        sb.append("覆盖要求: " + String.join(", ", request.getCoverageRequirements())).append("\n");
+        sb.append("\n重要要求：请严格以JSON格式返回生成的测试用例列表，不要添加任何额外的说明文字或格式。\n");
+        sb.append("JSON格式要求：\n");
+        sb.append("1. 根节点必须是一个包含test_cases字段的对象\n");
+        sb.append("2. test_cases字段是一个数组，包含多个测试用例对象\n");
+        sb.append("3. 每个测试用例对象必须包含case_id、title、steps和expected四个字段\n");
+        sb.append("4. case_id字段是测试用例的唯一标识，格式为字符串\n");
+        sb.append("5. title字段是测试用例的标题，格式为字符串\n");
+        sb.append("6. steps字段是测试步骤的数组，每个元素是一个字符串\n");
+        sb.append("7. expected字段是预期结果，格式为字符串\n");
+        sb.append("\n示例：\n");
+        sb.append("{\n");
+        sb.append("  \"test_cases\": [\n");
+        sb.append("    {\n");
+        sb.append("      \"case_id\": \"1\",\n");
+        sb.append("      \"title\": \"正常创建月度规划单并添加明细\",\n");
+        sb.append("      \"steps\": [\n");
+        sb.append("        \"1. 登录系统，进入月度规划模块\",\n");
+        sb.append("        \"2. 点击【新建规划单】，填写有效月份（如2023-10）和负责人\",\n");
+        sb.append("        \"3. 保存规划单，确认状态变为【已生效】\",\n");
+        sb.append("        \"4. 在规划单详情页点击【添加明细】，输入符合时间范围的业务数据\",\n");
+        sb.append("        \"5. 重复步骤4添加多条明细，总数量不超过系统预设上限\"\n");
+        sb.append("      ],\n");
+        sb.append("      \"expected\": \"规划单保存成功，所有明细均显示在对应规划单下，无审批流程触发\"\n");
+        sb.append("    },\n");
+        sb.append("    {\n");
+        sb.append("      \"case_id\": \"2\",\n");
+        sb.append("      \"title\": \"明细数量达到规划单上限\",\n");
+        sb.append("      \"steps\": [\n");
+        sb.append("        \"1. 创建规划单时设置明细数量上限为10条\",\n");
+        sb.append("        \"2. 连续添加10条有效明细\",\n");
+        sb.append("        \"3. 尝试添加第11条明细\"\n");
+        sb.append("      ],\n");
+        sb.append("      \"expected\": \"前10条明细保存成功，第11条提交时提示'超出规划单容量限制'\"\n");
+        sb.append("    }\n");
+        sb.append("  ]\n");
+        sb.append("}\n");
+        sb.append("\n请严格按照上述JSON格式生成测试用例，不要添加任何额外的内容。");
         return sb.toString();
     }
 
@@ -169,12 +231,41 @@ public class AiBizServiceImpl implements AiBizService {
      * 解析搜索结果
      */
     private List<Map<String, Object>> parseSearchResult(String searchResult) {
-        // 这里简化处理，实际需要使用JSON解析库解析结果
         List<Map<String, Object>> cases = new ArrayList<>();
-        // 示例解析逻辑
-        Map<String, Object> case1 = new HashMap<>();
-        case1.put("content", "参考用例1：测试登录功能");
-        cases.add(case1);
+        try {
+            // 使用ObjectMapper解析JSON结果
+            Map<String, Object> resultMap = objectMapper.readValue(searchResult, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            
+            // 提取result字段
+            Object resultObj = resultMap.get("result");
+            if (resultObj instanceof List) {
+                List<?> resultList = (List<?>) resultObj;
+                
+                // 遍历结果列表
+                for (Object item : resultList) {
+                    if (item instanceof Map) {
+                        Map<?, ?> itemMap = (Map<?, ?>) item;
+                        
+                        // 提取payload字段
+                        Object payloadObj = itemMap.get("payload");
+                        if (payloadObj instanceof Map) {
+                            Map<?, ?> payloadMap = (Map<?, ?>) payloadObj;
+                            
+                            // 提取content字段
+                            Object contentObj = payloadMap.get("content");
+                            if (contentObj != null) {
+                                Map<String, Object> caseMap = new HashMap<>();
+                                caseMap.put("content", contentObj.toString());
+                                cases.add(caseMap);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error parsing search result: {}", e.getMessage(), e);
+            // 如果解析失败，返回空列表
+        }
         return cases;
     }
 

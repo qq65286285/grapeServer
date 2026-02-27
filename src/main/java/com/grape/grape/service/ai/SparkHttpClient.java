@@ -11,7 +11,8 @@ import java.util.*;
 @Service
 public class SparkHttpClient {
     private static final Logger logger = LoggerFactory.getLogger(SparkHttpClient.class);
-    private static final String API_URL = "https://spark-api-open.xf-yun.com/v2/chat/completions";
+    @Value("${xfyun.spark.host-url:https://spark-api.xf-yun.com/v1/x1}")
+    private String apiUrl;
     
     @Value("${xfyun.spark.appid}")
     private String appId;
@@ -41,99 +42,118 @@ public class SparkHttpClient {
 
     // 发送同步请求
     public String sendSyncRequest(String prompt) throws IOException {
-        logger.info("=== Spark HTTP Client ===");
-        logger.info("AppId: {}", appId);
-        logger.info("ApiKey: {}", apiKey);
-        logger.info("ApiSecret: {}", apiSecret);
-        logger.info("API URL: {}", API_URL);
-        logger.info("Prompt length: {}", prompt.length());
         
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", "spark-x"); // 指定使用X系列模型
-        requestBody.put("user", "test-case-generator");
-        requestBody.put("stream", false);
-        requestBody.put("max_tokens", 4096);
         
+        // 构建header
+        Map<String, Object> header = new HashMap<>();
+        header.put("app_id", appId);
+        header.put("uid", String.valueOf(System.nanoTime()));
+        header.put("status", 3);
+        requestBody.put("header", header);
+        
+        // 构建parameter
+        Map<String, Object> parameter = new HashMap<>();
+        Map<String, Object> chat = new HashMap<>();
+        chat.put("domain", "spark-x");
+        chat.put("temperature", 0.7);
+        chat.put("max_tokens", 4096);
+        parameter.put("chat", chat);
+        requestBody.put("parameter", parameter);
+        
+        // 构建payload
+        Map<String, Object> payload = new HashMap<>();
         Map<String, Object> message = new HashMap<>();
         message.put("role", "user");
         message.put("content", prompt);
-        requestBody.put("messages", Collections.singletonList(message));
+        payload.put("message", message);
+        requestBody.put("payload", payload);
 
-        // 生成认证头
+        // 生成请求体字符串
         String requestBodyStr = objectMapper.writeValueAsString(requestBody);
         
-        // 科大讯飞API认证需要的参数
-        long timestamp = System.currentTimeMillis() / 1000;
-        String host = "spark-api-open.xf-yun.com";
-        String path = "/v2/chat/completions";
-        String method = "POST";
-        String contentType = "application/json";
+        // 打印完整的请求体
+        logger.info("Request body: {}", requestBodyStr);
         
-        // 计算请求体的摘要
-        String digest = null;
-        String signature = null;
+        // 构建认证URL
+        String authUrl = null;
         try {
-            digest = calculateDigest(requestBodyStr);
+            // 解析API URL获取host和path
+            java.net.URL url = new java.net.URL(apiUrl);
+            String host = url.getHost();
+            String path = url.getPath();
             
-            // 构建签名源字符串（严格按照科大讯飞的要求）
-            String signatureOrigin = String.format(
-                "host:%s\ndate:%d\n%s %s HTTP/1.1\ndigest:%s\ncontent-type:%s",
-                host, timestamp, method, path, digest, contentType
+            // 生成date
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", java.util.Locale.US);
+            sdf.setTimeZone(java.util.TimeZone.getTimeZone("GMT"));
+            String date = sdf.format(new java.util.Date());
+            
+            // 生成向量字符串
+            String vectorString = String.format("host: %s\ndate: %s\nPOST %s HTTP/1.1", host, date, path);
+            
+            // 使用 HMAC-SHA256 算法签名
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(apiSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKeySpec);
+            byte[] signatureBytes = mac.doFinal(vectorString.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            
+            // 对签名进行 base64 编码
+            String signature = java.util.Base64.getEncoder().encodeToString(signatureBytes);
+            
+            // 生成 authorization_origin 字符串
+            String authorizationOrigin = String.format(
+                "api_key=\"%s\", algorithm=\"hmac-sha256\", headers=\"host date request-line\", signature=\"%s\"",
+                apiKey, signature
             );
             
-            logger.info("Signature origin: {}", signatureOrigin);
+            // 对 authorization_origin 进行 base64 编码生成 authorization
+            String authorization = java.util.Base64.getEncoder().encodeToString(authorizationOrigin.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             
-            // 生成HMAC SHA256签名
-            signature = calculateHmacSHA256(signatureOrigin, apiSecret);
+            // 组装 URL 参数
+            StringBuilder urlBuilder = new StringBuilder();
+            urlBuilder.append(apiUrl).append("?");
+            urlBuilder.append("authorization=").append(java.net.URLEncoder.encode(authorization, "UTF-8"));
+            urlBuilder.append("&date=").append(java.net.URLEncoder.encode(date, "UTF-8"));
+            urlBuilder.append("&host=").append(java.net.URLEncoder.encode(host, "UTF-8"));
+            
+            authUrl = urlBuilder.toString();
         } catch (Exception e) {
-            logger.error("Error generating signature: {}", e.getMessage(), e);
-            throw new IOException("Error generating signature", e);
+            logger.error("Error generating auth URL: {}", e.getMessage(), e);
+            throw new IOException("Error generating auth URL", e);
         }
         
-        logger.info("Generated signature: {}", signature);
-        
-        // 构建Authorization头
-        String authorization = String.format(
-            "api_key=%s, algorithm=hmac-sha256, headers=host date request-line digest content-type, signature=%s",
-            apiKey, signature
-        );
-        
-        logger.info("Generated Authorization header: {}", authorization);
+        logger.info("Auth URL: {}", authUrl);
         
         // 构建请求
         Request request = new Request.Builder()
-                .url(API_URL)
-                .header("Host", host)
-                .header("Date", String.valueOf(timestamp))
-                .header("Content-Type", contentType)
-                .header("Digest", digest)
-                .header("Authorization", authorization)
-                .header("X-Request-ID", java.util.UUID.randomUUID().toString())
+                .url(authUrl)
+                .header("Content-Type", "application/json")
                 .post(RequestBody.create(
                         requestBodyStr,
                         MediaType.get("application/json")
                 ))
                 .build();
 
-        logger.info("Sending request to: {}", API_URL);
-        logger.info("Request headers: {}", request.headers());
+        // 输出请求日志
+        logger.info("**********************");
+        logger.info("请求url：{}", authUrl);
+        logger.info("请求header：{}", request.headers());
+        logger.info("请求入参：{}", requestBodyStr);
         
         try (Response response = httpClient.newCall(request).execute()) {
-            logger.info("Response code: {}", response.code());
-            logger.info("Response message: {}", response.message());
-            logger.info("Response headers: {}", response.headers());
+            int responseCode = response.code();
+            String responseBody = response.body() != null ? response.body().string() : "No response body";
+            
+            // 输出响应日志
+            logger.info("请求结果：code = {}", responseCode);
+            logger.info("请求返回：{}", responseBody);
+            logger.info("*******************");
             
             if (!response.isSuccessful()) {
-                String errorBody = response.body() != null ? response.body().string() : "No error body";
-                logger.error("Error response body: {}", errorBody);
-                throw new IOException("Unexpected code: " + response + ", Body: " + errorBody);
+                throw new IOException("Unexpected code: " + response + ", Body: " + responseBody);
             }
             
-            String jsonBody = response.body().string();
-            logger.info("Response body length: {}", jsonBody.length());
-            logger.info("Response body (first 500 chars): {}", jsonBody.substring(0, Math.min(500, jsonBody.length())));
-            
-            return parseContentResponse(jsonBody);
+            return parseContentResponse(responseBody);
         } catch (Exception e) {
             logger.error("Error in sendSyncRequest: {}", e.getMessage(), e);
             throw e;
@@ -142,99 +162,118 @@ public class SparkHttpClient {
 
     // 发送带上下文的实体/关系抽取请求
     public List<ExtractedEntity> extractEntities(String text) throws IOException {
-        logger.info("=== Spark HTTP Client (Entity Extraction) ===");
-        logger.info("AppId: {}", appId);
-        logger.info("ApiKey: {}", apiKey);
-        logger.info("ApiSecret: {}", apiSecret);
-        logger.info("API URL: {}", API_URL);
-        logger.info("Text length: {}", text.length());
         
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", "spark-x"); // 指定使用X系列模型
-        requestBody.put("user", "document-processor");
-        requestBody.put("stream", false);
-        requestBody.put("max_tokens", 4096);
         
+        // 构建header
+        Map<String, Object> header = new HashMap<>();
+        header.put("app_id", appId);
+        header.put("uid", String.valueOf(System.nanoTime()));
+        header.put("status", 3);
+        requestBody.put("header", header);
+        
+        // 构建parameter
+        Map<String, Object> parameter = new HashMap<>();
+        Map<String, Object> chat = new HashMap<>();
+        chat.put("domain", "spark-x");
+        chat.put("temperature", 0.7);
+        chat.put("max_tokens", 4096);
+        parameter.put("chat", chat);
+        requestBody.put("parameter", parameter);
+        
+        // 构建payload
+        Map<String, Object> payload = new HashMap<>();
         Map<String, Object> message = new HashMap<>();
         message.put("role", "user");
         message.put("content", buildPrompt(text)); // 关键！构造精准提示词
-        requestBody.put("messages", Collections.singletonList(message));
+        payload.put("message", message);
+        requestBody.put("payload", payload);
 
-        // 生成认证头
+        // 生成请求体字符串
         String requestBodyStr = objectMapper.writeValueAsString(requestBody);
         
-        // 科大讯飞API认证需要的参数
-        long timestamp = System.currentTimeMillis() / 1000;
-        String host = "spark-api-open.xf-yun.com";
-        String path = "/v2/chat/completions";
-        String method = "POST";
-        String contentType = "application/json";
+        // 打印完整的请求体
+        logger.info("Request body: {}", requestBodyStr);
         
-        // 计算请求体的摘要
-        String digest = null;
-        String signature = null;
+        // 构建认证URL
+        String authUrl = null;
         try {
-            digest = calculateDigest(requestBodyStr);
+            // 解析API URL获取host和path
+            java.net.URL url = new java.net.URL(apiUrl);
+            String host = url.getHost();
+            String path = url.getPath();
             
-            // 构建签名源字符串（严格按照科大讯飞的要求）
-            String signatureOrigin = String.format(
-                "host:%s\ndate:%d\n%s %s HTTP/1.1\ndigest:%s\ncontent-type:%s",
-                host, timestamp, method, path, digest, contentType
+            // 生成date
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", java.util.Locale.US);
+            sdf.setTimeZone(java.util.TimeZone.getTimeZone("GMT"));
+            String date = sdf.format(new java.util.Date());
+            
+            // 生成向量字符串
+            String vectorString = String.format("host: %s\ndate: %s\nPOST %s HTTP/1.1", host, date, path);
+            
+            // 使用 HMAC-SHA256 算法签名
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(apiSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKeySpec);
+            byte[] signatureBytes = mac.doFinal(vectorString.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            
+            // 对签名进行 base64 编码
+            String signature = java.util.Base64.getEncoder().encodeToString(signatureBytes);
+            
+            // 生成 authorization_origin 字符串
+            String authorizationOrigin = String.format(
+                "api_key=\"%s\", algorithm=\"hmac-sha256\", headers=\"host date request-line\", signature=\"%s\"",
+                apiKey, signature
             );
             
-            logger.info("Signature origin: {}", signatureOrigin);
+            // 对 authorization_origin 进行 base64 编码生成 authorization
+            String authorization = java.util.Base64.getEncoder().encodeToString(authorizationOrigin.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             
-            // 生成HMAC SHA256签名
-            signature = calculateHmacSHA256(signatureOrigin, apiSecret);
+            // 组装 URL 参数
+            StringBuilder urlBuilder = new StringBuilder();
+            urlBuilder.append(apiUrl).append("?");
+            urlBuilder.append("authorization=").append(java.net.URLEncoder.encode(authorization, "UTF-8"));
+            urlBuilder.append("&date=").append(java.net.URLEncoder.encode(date, "UTF-8"));
+            urlBuilder.append("&host=").append(java.net.URLEncoder.encode(host, "UTF-8"));
+            
+            authUrl = urlBuilder.toString();
         } catch (Exception e) {
-            logger.error("Error generating signature: {}", e.getMessage(), e);
-            throw new IOException("Error generating signature", e);
+            logger.error("Error generating auth URL: {}", e.getMessage(), e);
+            throw new IOException("Error generating auth URL", e);
         }
         
-        logger.info("Generated signature: {}", signature);
-        
-        // 构建Authorization头
-        String authorization = String.format(
-            "api_key=%s, algorithm=hmac-sha256, headers=host date request-line digest content-type, signature=%s",
-            apiKey, signature
-        );
-        
-        logger.info("Generated Authorization header: {}", authorization);
+        logger.info("Auth URL: {}", authUrl);
         
         // 构建请求
         Request request = new Request.Builder()
-                .url(API_URL)
-                .header("Host", host)
-                .header("Date", String.valueOf(timestamp))
-                .header("Content-Type", contentType)
-                .header("Digest", digest)
-                .header("Authorization", authorization)
-                .header("X-Request-ID", java.util.UUID.randomUUID().toString())
+                .url(authUrl)
+                .header("Content-Type", "application/json")
                 .post(RequestBody.create(
                         requestBodyStr,
                         MediaType.get("application/json")
                 ))
                 .build();
 
-        logger.info("Sending request to: {}", API_URL);
-        logger.info("Request headers: {}", request.headers());
+        // 输出请求日志
+        logger.info("**********************");
+        logger.info("请求url：{}", authUrl);
+        logger.info("请求header：{}", request.headers());
+        logger.info("请求入参：{}", requestBodyStr);
         
         try (Response response = httpClient.newCall(request).execute()) {
-            logger.info("Response code: {}", response.code());
-            logger.info("Response message: {}", response.message());
-            logger.info("Response headers: {}", response.headers());
+            int responseCode = response.code();
+            String responseBody = response.body() != null ? response.body().string() : "No response body";
+            
+            // 输出响应日志
+            logger.info("请求结果：code = {}", responseCode);
+            logger.info("请求返回：{}", responseBody);
+            logger.info("*******************");
             
             if (!response.isSuccessful()) {
-                String errorBody = response.body() != null ? response.body().string() : "No error body";
-                logger.error("Error response body: {}", errorBody);
-                throw new IOException("Unexpected code: " + response + ", Body: " + errorBody);
+                throw new IOException("Unexpected code: " + response + ", Body: " + responseBody);
             }
             
-            String jsonBody = response.body().string();
-            logger.info("Response body length: {}", jsonBody.length());
-            logger.info("Response body (first 500 chars): {}", jsonBody.substring(0, Math.min(500, jsonBody.length())));
-            
-            return parseResponse(jsonBody);
+            return parseResponse(responseBody);
         } catch (Exception e) {
             logger.error("Error in extractEntities: {}", e.getMessage(), e);
             throw e;

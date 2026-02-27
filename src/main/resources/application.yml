@@ -41,9 +41,9 @@ spring:
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     driverClassName: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
+    # url: jdbc:mysql://127.0.0.1:3306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
     # url: jdbc:mysql://127.0.0.1:13306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
-    # url: jdbc:mysql://192.168.22.140:3306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
+    url: jdbc:mysql://192.168.22.140:3306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
     username: root
     password: root
 
@@ -82,17 +82,17 @@ logging:
             QueryWrapper: DEBUG
 
 # Minio 配置
-# minio:
-#   url: http://192.168.22.140:9000
-#   accessKey: admin
-#   secretKey: minio123456
-#   bucketName: grape
-
 minio:
-  url: http://127.0.0.1:9000
+  url: http://192.168.22.140:9000
   accessKey: admin
-  secretKey:  admin123456
+  secretKey: minio123456
   bucketName: grape
+
+# minio:
+#   url: http://127.0.0.1:9000
+#   accessKey: admin
+#   secretKey:  admin123456
+#   bucketName: grape
 
 # 投屏功能配置（USB连接低延迟优化）
 screen-mirror:
@@ -131,9 +131,16 @@ xfyun:
     appid: "d2dd156b"
     api-secret: "NGRjODRhZmE1OTcyY2VlNWM5OTVkYzRk"
     api-key: "fea2b3c358dfea4e8754cb3730a42058"
+    vector-url: "https://emb-cn-huabei-1.xf-yun.com/"
 
 # Qdrant配置
+# qdrant:
+#   host: localhost
+#   port: 6333
+  # api-key: qdrant123
+
+
 qdrant:
-  host: localhost
+  host: 192.168.22.140
   port: 6333
-  api-key: qdrant123
+  # api-key: qdrant123

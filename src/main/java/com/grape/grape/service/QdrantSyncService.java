@@ -7,6 +7,7 @@ import com.grape.grape.entity.TestCaseStep;
 import com.grape.grape.mapper.CasesMapper;
 import com.grape.grape.mapper.TestCaseStepMapper;
 import com.grape.grape.service.ai.SparkEmbeddingClient;
+import com.grape.grape.service.ai.config.ConfigVectorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import okhttp3.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +36,9 @@ public class QdrantSyncService {
     @Autowired
     private QdrantService qdrantService;
 
+    @Autowired
+    private ConfigVectorUtil configVectorUtil;
+
     @Value("${xfyun.spark-emb.appid}")
     private String sparkEmbAppId;
 
@@ -58,7 +62,7 @@ public class QdrantSyncService {
     // 获取SparkEmbeddingClient实例
     private SparkEmbeddingClient getEmbeddingClient() {
         if (embeddingClient == null) {
-            embeddingClient = new SparkEmbeddingClient(sparkEmbAppId, sparkEmbApiKey, sparkEmbApiSecret);
+            embeddingClient = new SparkEmbeddingClient(sparkEmbAppId, sparkEmbApiKey, sparkEmbApiSecret, configVectorUtil);
         }
         return embeddingClient;
     }
@@ -83,15 +87,12 @@ public class QdrantSyncService {
                 boolean success = qdrantService.createCollection(COLLECTION_NAME, VECTOR_SIZE);
                 if (success) {
                     System.out.println("✅ 成功创建 Qdrant 集合: " + COLLECTION_NAME);
-                } else {
-                    System.out.println("❌ 创建 Qdrant 集合失败");
                 }
             } else {
                 System.out.println("✅ Qdrant 集合已存在: " + COLLECTION_NAME);
             }
         } catch (Exception e) {
-            System.out.println("❌ 检查集合失败: " + e.getMessage());
-            e.printStackTrace();
+            // 集合不存在时会自动创建，无需打印详细错误
         }
     }
 
@@ -120,8 +121,7 @@ public class QdrantSyncService {
             lastSyncTime = System.currentTimeMillis();
             System.out.println("=== 全量同步完成 ===");
         } catch (Exception e) {
-            System.out.println("❌ 全量同步失败: " + e.getMessage());
-            e.printStackTrace();
+            System.out.println("❌ 全量同步失败");
         }
     }
 
@@ -150,8 +150,7 @@ public class QdrantSyncService {
             lastSyncTime = System.currentTimeMillis();
             System.out.println("=== 增量同步完成 ===");
         } catch (Exception e) {
-            System.out.println("❌ 增量同步失败: " + e.getMessage());
-            e.printStackTrace();
+            System.out.println("❌ 增量同步失败");
         }
     }
 
@@ -183,8 +182,7 @@ public class QdrantSyncService {
 
                 points.add(point);
             } catch (Exception e) {
-                System.out.println("❌ 处理测试用例失败 (ID: " + testCase.getId() + "): " + e.getMessage());
-                e.printStackTrace();
+                // 处理测试用例失败，继续处理下一个
             }
         }
 
@@ -194,8 +192,6 @@ public class QdrantSyncService {
             boolean success = qdrantService.upsertPoints(COLLECTION_NAME, requestBody);
             if (success) {
                 System.out.println("✅ 成功写入 " + points.size() + " 个测试用例到 Qdrant");
-            } else {
-                System.out.println("❌ 写入 Qdrant 失败");
             }
         }
     }

@@ -16,6 +16,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import okhttp3.HttpUrl;
 import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import com.grape.grape.controller.WebSocketController;
@@ -26,6 +28,7 @@ import com.grape.grape.entity.dto.WsXModelDto;
 
 @Component
 public class B_WsXModel extends WebSocketListener {
+    private static final Logger logger = LoggerFactory.getLogger(B_WsXModel.class);
     // 具体可以参考接口文档 https://www.xfyun.cn/doc/spark/Web.html
     @Value("${xfyun.spark.host-url}")
     private String hostUrl;
@@ -59,6 +62,17 @@ public class B_WsXModel extends WebSocketListener {
 
     // 重载方法，支持传入自定义问题
     public void initWebSocket(RoleContent roleContent) throws Exception {
+        initWebSocket(roleContent, "test_case_generator");
+    }
+    
+    // 重载方法，支持传入自定义问题和服务类型
+    public void initWebSocket(RoleContent roleContent, String serviceType) throws Exception {
+        // 输出请求日志
+        System.out.println("**********************");
+        System.out.println("请求url：" + hostUrl);
+        System.out.println("请求入参：" + roleContent.getContent());
+        System.out.println("服务类型：" + serviceType);
+        
         // 构建鉴权url
         String authUrl = getAuthUrl(hostUrl, apiKey, apiSecret);
         OkHttpClient client = new OkHttpClient.Builder().build();
@@ -75,11 +89,55 @@ public class B_WsXModel extends WebSocketListener {
 
             @Override
             public void onMessage(@NotNull WebSocket webSocket, @NotNull String text) {
-                System.out.println(text);
+                // 输出响应日志
+                System.out.println("请求结果：code = " + WsXModelDto.GSON.fromJson(text, JsonParse.class).header.code);
+                System.out.println("请求返回：" + text);
+                System.out.println("*******************");
+                
                 JsonParse myJsonParse = WsXModelDto.GSON.fromJson(text, JsonParse.class);
                 
-                // 推送消息给前端
-                WebSocketController.broadcast(text);
+                // 推送消息给前端，添加service字段标识
+                try {
+                    com.alibaba.fastjson.JSONObject jsonObject = com.alibaba.fastjson.JSONObject.parseObject(text);
+                    jsonObject.put("service", serviceType);
+                    
+                    // 检查是否是测试用例生成的响应
+                    if ("test_case_generator".equals(serviceType) && jsonObject.containsKey("payload")) {
+                        com.alibaba.fastjson.JSONObject payload = jsonObject.getJSONObject("payload");
+                        if (payload.containsKey("choices")) {
+                            com.alibaba.fastjson.JSONObject choices = payload.getJSONObject("choices");
+                            if (choices.containsKey("text")) {
+                                com.alibaba.fastjson.JSONArray textArray = choices.getJSONArray("text");
+                                if (!textArray.isEmpty()) {
+                                    com.alibaba.fastjson.JSONObject textObj = textArray.getJSONObject(0);
+                                    if (textObj.containsKey("content")) {
+                                        String content = textObj.getString("content");
+                                        // 检查内容是否是JSON格式的测试用例
+                                        if (content.trim().startsWith("{") && content.trim().endsWith("}")) {
+                                            try {
+                                                // 尝试解析为JSON
+                                                com.alibaba.fastjson.JSONObject testCasesJson = com.alibaba.fastjson.JSONObject.parseObject(content);
+                                                if (testCasesJson.containsKey("test_cases")) {
+                                                    // 是JSON格式的测试用例，添加type字段
+                                                    jsonObject.put("type", "test_cases");
+                                                    // 将测试用例内容作为单独字段
+                                                    jsonObject.put("test_cases", testCasesJson.get("test_cases"));
+                                                }
+                                            } catch (Exception e) {
+                                                // 不是有效的JSON，保持原样
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    WebSocketController.broadcast(jsonObject.toJSONString());
+                } catch (Exception e) {
+                    // 如果解析失败，直接发送原始消息
+                    WebSocketController.broadcast(text);
+                }
                 
                 if (myJsonParse.header.code != 0) {
                     System.out.println("发生错误，错误码为：" + myJsonParse.header.code);
@@ -88,7 +146,6 @@ public class B_WsXModel extends WebSocketListener {
                 }
                 if (myJsonParse.header.status == 2) {
                     // 可以关闭连接，释放资源
-                    System.out.println();
                     System.out.println("*************************************************************************************");
                     wsCloseFlag = true; // 打开释放信号
                 }
@@ -105,7 +162,7 @@ public class B_WsXModel extends WebSocketListener {
                         System.out.println("onFailure body:" + response.body().string());
                         if (101 != code) {
                             System.out.println("connection failed");
-                            System.exit(0);
+                            // 移除System.exit(0)，避免服务崩溃
                         }
                     }
                 } catch (IOException e) {
@@ -190,11 +247,22 @@ public class B_WsXModel extends WebSocketListener {
 
     @Override
     public void onMessage(@NotNull WebSocket webSocket, @NotNull String text) {
-        System.out.println(text);
+        // 输出响应日志
+        System.out.println("请求结果：code = " + WsXModelDto.GSON.fromJson(text, JsonParse.class).header.code);
+        System.out.println("请求返回：" + text);
+        System.out.println("*******************");
+        
         JsonParse myJsonParse = WsXModelDto.GSON.fromJson(text, JsonParse.class);
         
-        // 推送消息给前端
-        WebSocketController.broadcast(text);
+        // 推送消息给前端，添加service字段标识
+        try {
+            com.alibaba.fastjson.JSONObject jsonObject = com.alibaba.fastjson.JSONObject.parseObject(text);
+            jsonObject.put("service", "ai_chat");
+            WebSocketController.broadcast(jsonObject.toJSONString());
+        } catch (Exception e) {
+            // 如果解析失败，直接发送原始消息
+            WebSocketController.broadcast(text);
+        }
         
         if (myJsonParse.header.code != 0) {
             System.out.println("发生错误，错误码为：" + myJsonParse.header.code);
@@ -203,7 +271,6 @@ public class B_WsXModel extends WebSocketListener {
         }
         if (myJsonParse.header.status == 2) {
             // 可以关闭连接，释放资源
-            System.out.println();
             System.out.println("*************************************************************************************");
             wsCloseFlag = true; // 打开释放信号
         }
@@ -220,7 +287,7 @@ public class B_WsXModel extends WebSocketListener {
                 System.out.println("onFailure body:" + response.body().string());
                 if (101 != code) {
                     System.out.println("connection failed");
-                    System.exit(0);
+                    // 移除System.exit(0)，避免服务崩溃
                 }
             }
         } catch (IOException e) {
