@@ -193,7 +193,6 @@
 			<systemPath>${project.basedir}/src/main/resources/Tools.jar</systemPath>
 		</dependency>
 
-	
 </dependencies>
 	<build>
 		<plugins>
