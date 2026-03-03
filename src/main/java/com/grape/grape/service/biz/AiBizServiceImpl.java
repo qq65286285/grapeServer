@@ -136,7 +136,7 @@ public class AiBizServiceImpl implements AiBizService {
             generatedCases.add(infoCase);
 
             // 6. 返回生成的用例列表
-            response.put("code", 200);
+            response.put("code", 0);
             response.put("message", "success");
             response.put("data", generatedCases);
         } catch (Exception e) {
@@ -187,43 +187,75 @@ public class AiBizServiceImpl implements AiBizService {
         sb.append("生成模式: " + request.getGenerateMode()).append("\n");
         sb.append("用例模板: " + request.getCaseTemplate()).append("\n");
         sb.append("覆盖要求: " + String.join(", ", request.getCoverageRequirements())).append("\n");
-        sb.append("\n重要要求：请严格以JSON格式返回生成的测试用例列表，不要添加任何额外的说明文字或格式。\n");
-        sb.append("JSON格式要求：\n");
-        sb.append("1. 根节点必须是一个包含test_cases字段的对象\n");
-        sb.append("2. test_cases字段是一个数组，包含多个测试用例对象\n");
-        sb.append("3. 每个测试用例对象必须包含case_id、title、steps和expected四个字段\n");
-        sb.append("4. case_id字段是测试用例的唯一标识，格式为字符串\n");
-        sb.append("5. title字段是测试用例的标题，格式为字符串\n");
-        sb.append("6. steps字段是测试步骤的数组，每个元素是一个字符串\n");
-        sb.append("7. expected字段是预期结果，格式为字符串\n");
-        sb.append("\n示例：\n");
-        sb.append("{\n");
-        sb.append("  \"test_cases\": [\n");
-        sb.append("    {\n");
-        sb.append("      \"case_id\": \"1\",\n");
-        sb.append("      \"title\": \"正常创建月度规划单并添加明细\",\n");
-        sb.append("      \"steps\": [\n");
-        sb.append("        \"1. 登录系统，进入月度规划模块\",\n");
-        sb.append("        \"2. 点击【新建规划单】，填写有效月份（如2023-10）和负责人\",\n");
-        sb.append("        \"3. 保存规划单，确认状态变为【已生效】\",\n");
-        sb.append("        \"4. 在规划单详情页点击【添加明细】，输入符合时间范围的业务数据\",\n");
-        sb.append("        \"5. 重复步骤4添加多条明细，总数量不超过系统预设上限\"\n");
-        sb.append("      ],\n");
-        sb.append("      \"expected\": \"规划单保存成功，所有明细均显示在对应规划单下，无审批流程触发\"\n");
-        sb.append("    },\n");
-        sb.append("    {\n");
-        sb.append("      \"case_id\": \"2\",\n");
-        sb.append("      \"title\": \"明细数量达到规划单上限\",\n");
-        sb.append("      \"steps\": [\n");
-        sb.append("        \"1. 创建规划单时设置明细数量上限为10条\",\n");
-        sb.append("        \"2. 连续添加10条有效明细\",\n");
-        sb.append("        \"3. 尝试添加第11条明细\"\n");
-        sb.append("      ],\n");
-        sb.append("      \"expected\": \"前10条明细保存成功，第11条提交时提示'超出规划单容量限制'\"\n");
-        sb.append("    }\n");
-        sb.append("  ]\n");
-        sb.append("}\n");
-        sb.append("\n请严格按照上述JSON格式生成测试用例，不要添加任何额外的内容。");
+        sb.append("\n重要要求：重要要求：请严格以纯文本格式返回生成的测试用例列表，不要添加任何额外的说明文字或格式。\n");
+        sb.append("格式要求：\n");
+        sb.append("必须按照以下示例格式进行组织：\n");
+        sb.append("每个测试用例TC标记前都要换行 \n");
+        sb.append("TC标记后直接接测试用例标题，无缩进 \n");
+        sb.append("步骤字段使用2个英文空格缩进 \n");
+        sb.append("步骤内容使用4个英文空格缩进 \n");
+        sb.append("预期结果使用6个英文空格缩进 \n");
+        sb.append("TC，步骤，预期结果，都要换行  \n");
+        String str = """
+                示例：
+                
+                TC：指定操作下拉单选功能                
+                步骤
+                1、进入自动化连接器-自动化操作配置页面
+                    预期结果：页面加载正常，配置区域展示完整
+                2、点击"指定操作"下拉框
+                    预期结果：下拉框展开，显示两个枚举值选项
+                3、分别选择两个枚举值选项
+                    预期结果：两个选项均可正常选中，选中状态清晰
+                
+                TC：指定操作与指定视图联动（任务视图）              
+                步骤
+                1、选择指定操作为"指定任务视图催单"
+                    预期结果：指定操作选择成功，无报错
+                2、查看"指定视图"下拉框内容
+                    预期结果：下拉框返回自定义任务的视图列表，内容准确
+                
+                TC：指定操作与指定视图联动（工作项视图）                
+                步骤
+                1、选择指定操作为"指定工作项视图催单"
+                    预期结果：指定操作选择成功，无卡顿
+                2、查看"指定视图"下拉框内容
+                    预期结果：下拉框返回全部工作项（含自定义）的视图列表，无遗漏
+            
+            请严格按照上述纯文本格式生成测试用例，不要添加任何额外的内容。
+                """;
+        sb.append(str);
+
+        
+
+        // sb.append("\n示例：\n");
+        // sb.append("{\n");
+        // sb.append("  \"test_cases\": [\n");
+        // sb.append("    {\n");
+        // sb.append("      \"case_id\": \"1\",\n");
+        // sb.append("      \"title\": \"正常创建月度规划单并添加明细\",\n");
+        // sb.append("      \"steps\": [\n");
+        // sb.append("        \"1. 登录系统，进入月度规划模块\",\n");
+        // sb.append("        \"2. 点击【新建规划单】，填写有效月份（如2023-10）和负责人\",\n");
+        // sb.append("        \"3. 保存规划单，确认状态变为【已生效】\",\n");
+        // sb.append("        \"4. 在规划单详情页点击【添加明细】，输入符合时间范围的业务数据\",\n");
+        // sb.append("        \"5. 重复步骤4添加多条明细，总数量不超过系统预设上限\"\n");
+        // sb.append("      ],\n");
+        // sb.append("      \"expected\": \"规划单保存成功，所有明细均显示在对应规划单下，无审批流程触发\"\n");
+        // sb.append("    },\n");
+        // sb.append("    {\n");
+        // sb.append("      \"case_id\": \"2\",\n");
+        // sb.append("      \"title\": \"明细数量达到规划单上限\",\n");
+        // sb.append("      \"steps\": [\n");
+        // sb.append("        \"1. 创建规划单时设置明细数量上限为10条\",\n");
+        // sb.append("        \"2. 连续添加10条有效明细\",\n");
+        // sb.append("        \"3. 尝试添加第11条明细\"\n");
+        // sb.append("      ],\n");
+        // sb.append("      \"expected\": \"前10条明细保存成功，第11条提交时提示'超出规划单容量限制'\"\n");
+        // sb.append("    }\n");
+        // sb.append("  ]\n");
+        // sb.append("}\n");
+        sb.append("\n请严格按照上述纯文本脑图格式生成测试用例，不要添加任何额外的内容。");
         return sb.toString();
     }
 

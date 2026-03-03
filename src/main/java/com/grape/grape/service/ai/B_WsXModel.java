@@ -169,6 +169,7 @@ public class B_WsXModel extends WebSocketListener {
                     // TODO Auto-generated catch block
                     e.printStackTrace();
                 }
+                // 不发送失败消息到前端，避免在聊天框中显示
             }
         }); // 调用WS入口
     }
@@ -294,6 +295,7 @@ public class B_WsXModel extends WebSocketListener {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
+        // 不发送失败消息到前端，避免在聊天框中显示
     }
 
 
