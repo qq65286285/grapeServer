@@ -24,4 +24,5 @@ public interface CaseBizService {
     Resp batchRemoveCases(List<Integer> ids);
     Map<String, Object> getCaseStats();
     Resp saveCaseSteps(Integer caseId, List<TestCaseStep> steps);
+    Resp batchUpdateCases(List<CaseRequest> caseRequests);
 }

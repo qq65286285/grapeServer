@@ -85,6 +85,37 @@ public class CaseBizServiceImpl implements CaseBizService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
+    public Resp batchUpdateCases(List<CaseRequest> caseRequests) {
+        if (caseRequests == null || caseRequests.isEmpty()) {
+            return Resp.info(400, "请求参数不能为空");
+        }
+        
+        try {
+            for (CaseRequest caseRequest : caseRequests) {
+                if (caseRequest == null || caseRequest.getId() == null) {
+                    throw new IllegalArgumentException("测试用例ID不能为空");
+                }
+                
+                // 使用 CaseRequest 的转换方法构建测试用例对象
+                Cases cases = caseRequest.toCasesForUpdate();
+                
+                // 更新测试用例
+                Resp updateResult = updateCase(cases);
+                
+                // 更新测试用例步骤
+                if (updateResult.getCode() == 0 && caseRequest.getSteps() != null) {
+                    saveCaseSteps(cases.getId(), caseRequest.getSteps());
+                }
+            }
+            return Resp.ok(true);
+        } catch (Exception e) {
+            log.error("批量更新测试用例失败: {}", e.getMessage(), e);
+            return Resp.info(500, "批量更新测试用例失败: " + e.getMessage());
+        }
+    }
+
+    @Override
     public Resp removeCase(Integer id) {
         // 先删除对应的测试步骤
         testCaseStepService.removeByTestCaseId(id);

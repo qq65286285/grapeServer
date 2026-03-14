@@ -150,6 +150,14 @@ public class CasesController {
     }
 
     /**
+     * 批量更新测试用例
+     */
+    @PutMapping("batchUpdate")
+    public Resp batchUpdate(@RequestBody List<CaseRequest> caseRequests) {
+        return caseBizService.batchUpdateCases(caseRequests);
+    }
+
+    /**
      * 获取测试用例统计信息
      */
     @GetMapping("stats")
