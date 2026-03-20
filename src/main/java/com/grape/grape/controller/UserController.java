@@ -133,4 +133,40 @@ public class UserController {
         }
     }
 
+    /**
+     * 查询用户列表（带条件）
+     *
+     * @param params 查询条件
+     * @return 用户列表
+     */
+    @PostMapping("list")
+    public Resp list(@RequestBody(required = false) Map<String, Object> params) {
+        try {
+            com.mybatisflex.core.query.QueryWrapper queryWrapper = com.mybatisflex.core.query.QueryWrapper.create();
+            
+            if (params != null) {
+                if (params.containsKey("username")) {
+                    queryWrapper.and("username like ?", "%" + params.get("username") + "%");
+                }
+                if (params.containsKey("nickname")) {
+                    queryWrapper.and("nickname like ?", "%" + params.get("nickname") + "%");
+                }
+                if (params.containsKey("status")) {
+                    queryWrapper.and("status = ?", params.get("status"));
+                }
+                if (params.containsKey("email")) {
+                    queryWrapper.and("email like ?", "%" + params.get("email") + "%");
+                }
+                if (params.containsKey("phone")) {
+                    queryWrapper.and("phone like ?", "%" + params.get("phone") + "%");
+                }
+            }
+            
+            List<User> users = userService.list(queryWrapper);
+            return Resp.ok(users);
+        } catch (Exception e) {
+            return Resp.info(500, "查询用户列表失败: " + e.getMessage());
+        }
+    }
+
 }
