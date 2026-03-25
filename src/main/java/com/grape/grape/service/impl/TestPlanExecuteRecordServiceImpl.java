@@ -176,13 +176,15 @@ public class TestPlanExecuteRecordServiceImpl extends ServiceImpl<TestPlanExecut
         // 设置创建人和更新人
         String userIdStr = UserUtils.getCurrentLoginUserId(userService);
         if (userIdStr != null) {
+            // 直接使用 userIdStr 作为 executorId，不进行类型转换
+            if (testPlanExecuteRecord.getExecutorId() == null) {
+                testPlanExecuteRecord.setExecutorId(userIdStr);
+            }
+            // 尝试将 userIdStr 转换为 Long 类型，用于 createdBy 和 updatedBy
             try {
                 Long userId = Long.parseLong(userIdStr);
                 if (testPlanExecuteRecord.getCreatedBy() == null) {
                     testPlanExecuteRecord.setCreatedBy(userId);
-                }
-                if (testPlanExecuteRecord.getExecutorId() == null) {
-                    testPlanExecuteRecord.setExecutorId(userId);
                 }
                 testPlanExecuteRecord.setUpdatedBy(userId);
             } catch (NumberFormatException e) {

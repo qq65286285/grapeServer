@@ -1,5 +1,7 @@
 package com.grape.grape.controller;
 
+import com.grape.grape.component.UserUtils;
+import com.grape.grape.entity.TestPlan;
 import com.grape.grape.entity.TestPlanMember;
 import com.grape.grape.model.Resp;
 import com.grape.grape.service.TestPlanMemberService;
@@ -16,11 +18,14 @@ import java.util.List;
  * @since 2026-03-17
  */
 @RestController
-@RequestMapping("/api/testPlanMember")
+@RequestMapping("/testPlanMember")
 public class TestPlanMemberController {
 
     @Autowired
     private TestPlanMemberService testPlanMemberService;
+
+    @Autowired
+    private com.grape.grape.service.UserService userService;
 
     /**
      * 新增测试计划成员
@@ -99,7 +104,7 @@ public class TestPlanMemberController {
      */
     @GetMapping("/page")
     public Resp page(@RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "10") int size,
-                    @RequestParam(required = false) Long planId, @RequestParam(required = false) Long userId,
+                    @RequestParam(required = false) Long planId, @RequestParam(required = false) String userId,
                     @RequestParam(required = false) Integer roleType, @RequestParam(required = false) Integer status) {
         Page<TestPlanMember> result = testPlanMemberService.page(Page.of(page, size), planId, userId, roleType, status);
         return Resp.ok(result);
@@ -137,7 +142,7 @@ public class TestPlanMemberController {
      * @return 成员列表
      */
     @GetMapping("/listByUserId/{userId}")
-    public Resp listByUserId(@PathVariable Long userId) {
+    public Resp listByUserId(@PathVariable String userId) {
         List<TestPlanMember> list = testPlanMemberService.listByUserId(userId);
         return Resp.ok(list);
     }
@@ -150,7 +155,7 @@ public class TestPlanMemberController {
      * @return 成员信息
      */
     @GetMapping("/getByPlanIdAndUserId")
-    public Resp getByPlanIdAndUserId(@RequestParam Long planId, @RequestParam Long userId) {
+    public Resp getByPlanIdAndUserId(@RequestParam Long planId, @RequestParam String userId) {
         TestPlanMember member = testPlanMemberService.getByPlanIdAndUserId(planId, userId);
         if (member != null) {
             return Resp.ok(member);
@@ -170,7 +175,7 @@ public class TestPlanMemberController {
      */
     @PostMapping("/approveMember/{id}")
     public Resp approveMember(@PathVariable Long id, @RequestParam Integer approveStatus,
-                            @RequestParam Long approveBy, @RequestParam String approveRemark) {
+                            @RequestParam String approveBy, @RequestParam String approveRemark) {
         boolean approved = testPlanMemberService.approveMember(id, approveStatus, approveBy, approveRemark);
         if (approved) {
             return Resp.ok("审批成功");
@@ -206,5 +211,23 @@ public class TestPlanMemberController {
     public Resp listApproversByPlanId(@PathVariable Long planId) {
         List<TestPlanMember> list = testPlanMemberService.listApproversByPlanId(planId);
         return Resp.ok(list);
+    }
+
+    /**
+     * 查询当前登录用户分配到的测试计划
+     *
+     * @return 测试计划列表
+     */
+    @GetMapping("/listMyPlans")
+    public Resp listMyPlans() {
+        // 获取当前登录用户ID
+        String currentUserId = UserUtils.getCurrentLoginUserId(userService);
+        if (currentUserId == null) {
+            return Resp.error();
+        }
+
+        // 查询当前用户分配到的测试计划
+        List<TestPlan> plans = testPlanMemberService.listMyPlans(currentUserId);
+        return Resp.ok(plans);
     }
 }

@@ -228,4 +228,52 @@ public class TestPlanTaskController {
         int successCount = testPlanTaskService.deleteByPlanId(planId);
         return Resp.ok(successCount);
     }
+
+    /**
+     * 查看我的已完成任务
+     *
+     * @param userId 用户ID
+     * @return 已完成任务列表
+     */
+    @GetMapping("/myTasks/completed/{userId}")
+    public Resp getMyCompletedTasks(@PathVariable Long userId) {
+        List<TestPlanTask> list = testPlanTaskService.listByOwnerId(userId);
+        // 过滤已完成的任务
+        List<TestPlanTask> completedTasks = list.stream()
+                .filter(task -> task.getStatus() != null && task.getStatus() == 3) // 假设3表示已完成
+                .collect(java.util.stream.Collectors.toList());
+        return Resp.ok(completedTasks);
+    }
+
+    /**
+     * 查看我的未开始任务
+     *
+     * @param userId 用户ID
+     * @return 未开始任务列表
+     */
+    @GetMapping("/myTasks/pending/{userId}")
+    public Resp getMyPendingTasks(@PathVariable Long userId) {
+        List<TestPlanTask> list = testPlanTaskService.listByOwnerId(userId);
+        // 过滤未开始的任务
+        List<TestPlanTask> pendingTasks = list.stream()
+                .filter(task -> task.getStatus() != null && task.getStatus() == 1) // 假设1表示未开始
+                .collect(java.util.stream.Collectors.toList());
+        return Resp.ok(pendingTasks);
+    }
+
+    /**
+     * 查看我的进行中任务
+     *
+     * @param userId 用户ID
+     * @return 进行中任务列表
+     */
+    @GetMapping("/myTasks/inProgress/{userId}")
+    public Resp getMyInProgressTasks(@PathVariable Long userId) {
+        List<TestPlanTask> list = testPlanTaskService.listByOwnerId(userId);
+        // 过滤进行中的任务
+        List<TestPlanTask> inProgressTasks = list.stream()
+                .filter(task -> task.getStatus() != null && task.getStatus() == 2) // 假设2表示进行中
+                .collect(java.util.stream.Collectors.toList());
+        return Resp.ok(inProgressTasks);
+    }
 }

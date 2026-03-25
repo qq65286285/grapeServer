@@ -100,7 +100,7 @@ public class TestPlanCaseSnapshot implements Serializable {
     /**
      * 指定执行人ID
      */
-    private Long executorId;
+    private String executorId;
 
     /**
      * 执行状态: 0-未执行, 1-通过, 2-失败, 3-阻塞, 4-跳过

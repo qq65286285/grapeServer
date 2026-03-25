@@ -41,7 +41,7 @@ public class TestPlanTaskAssign implements Serializable {
     /**
      * 用户ID
      */
-    private Long userId;
+    private String userId;
 
     /**
      * 分配类型: 1-负责人, 2-参与人, 3-审核人
@@ -56,7 +56,7 @@ public class TestPlanTaskAssign implements Serializable {
     /**
      * 分配人ID
      */
-    private Long assignedBy;
+    private String assignedBy;
 
     /**
      * 分配时间

@@ -40,7 +40,7 @@ public class TestPlanMember implements Serializable {
     /**
      * 用户ID
      */
-    private Long userId;
+    private String userId;
 
     /**
      * 角色类型: 1-负责人(Owner), 2-参与人(Member), 3-签署人(Approver), 4-抄送人(CC)
@@ -110,7 +110,7 @@ public class TestPlanMember implements Serializable {
     /**
      * 创建人ID(谁添加的成员)
      */
-    private Long createdBy;
+    private String createdBy;
 
     /**
      * 创建时间(毫秒级时间戳)
@@ -120,7 +120,7 @@ public class TestPlanMember implements Serializable {
     /**
      * 更新人ID
      */
-    private Long updatedBy;
+    private String updatedBy;
 
     /**
      * 更新时间(毫秒级时间戳)

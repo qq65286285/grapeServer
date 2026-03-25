@@ -1,5 +1,6 @@
 package com.grape.grape.service;
 
+import com.grape.grape.entity.TestPlan;
 import com.grape.grape.entity.TestPlanMember;
 import com.mybatisflex.core.paginate.Page;
 
@@ -36,7 +37,7 @@ public interface TestPlanMemberService extends MyBaseService<TestPlanMember> {
      * @param userId 用户ID
      * @return 成员列表
      */
-    List<TestPlanMember> listByUserId(Long userId);
+    List<TestPlanMember> listByUserId(String userId);
 
     /**
      * 根据计划ID和用户ID查询成员信息
@@ -45,7 +46,7 @@ public interface TestPlanMemberService extends MyBaseService<TestPlanMember> {
      * @param userId 用户ID
      * @return 成员信息
      */
-    TestPlanMember getByPlanIdAndUserId(Long planId, Long userId);
+    TestPlanMember getByPlanIdAndUserId(Long planId, String userId);
 
     /**
      * 分页查询成员
@@ -57,7 +58,7 @@ public interface TestPlanMemberService extends MyBaseService<TestPlanMember> {
      * @param status 状态（可选）
      * @return 分页结果
      */
-    Page<TestPlanMember> page(Page<TestPlanMember> page, Long planId, Long userId, Integer roleType, Integer status);
+    Page<TestPlanMember> page(Page<TestPlanMember> page, Long planId, String userId, Integer roleType, Integer status);
 
     /**
      * 审批成员
@@ -68,7 +69,7 @@ public interface TestPlanMemberService extends MyBaseService<TestPlanMember> {
      * @param approveRemark 审批意见
      * @return 是否操作成功
      */
-    boolean approveMember(Long id, Integer approveStatus, Long approveBy, String approveRemark);
+    boolean approveMember(Long id, Integer approveStatus, String approveBy, String approveRemark);
 
     /**
      * 移除成员
@@ -94,4 +95,12 @@ public interface TestPlanMemberService extends MyBaseService<TestPlanMember> {
      * @return 审批人列表
      */
     List<TestPlanMember> listApproversByPlanId(Long planId);
+
+    /**
+     * 查询当前用户分配到的测试计划
+     *
+     * @param userId 用户ID
+     * @return 测试计划列表
+     */
+    List<TestPlan> listMyPlans(String userId);
 }

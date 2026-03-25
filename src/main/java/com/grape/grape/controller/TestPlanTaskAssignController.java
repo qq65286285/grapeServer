@@ -82,7 +82,7 @@ public class TestPlanTaskAssignController {
      */
     @GetMapping("/page")
     public Resp page(@RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "10") int size,
-                    @RequestParam(required = false) Long taskId, @RequestParam(required = false) Long userId,
+                    @RequestParam(required = false) Long taskId, @RequestParam(required = false) String userId,
                     @RequestParam(required = false) Integer assignType) {
         Page<TestPlanTaskAssign> result = testPlanTaskAssignService.page(Page.of(page, size), taskId, userId, assignType);
         return Resp.ok(result);
@@ -107,7 +107,7 @@ public class TestPlanTaskAssignController {
      * @return 分配列表
      */
     @GetMapping("/listByUserId/{userId}")
-    public Resp listByUserId(@PathVariable Long userId) {
+    public Resp listByUserId(@PathVariable String userId) {
         List<TestPlanTaskAssign> list = testPlanTaskAssignService.listByUserId(userId);
         return Resp.ok(list);
     }
@@ -148,8 +148,8 @@ public class TestPlanTaskAssignController {
      * @return 添加成功的数量
      */
     @PostMapping("/batchAdd")
-    public Resp batchAdd(@RequestParam Long taskId, @RequestParam List<Long> userIds, @RequestParam Integer assignType,
-                        @RequestParam(required = false) Double workload, @RequestParam(required = false) Long assignedBy) {
+    public Resp batchAdd(@RequestParam Long taskId, @RequestParam List<String> userIds, @RequestParam Integer assignType,
+                        @RequestParam(required = false) Double workload, @RequestParam(required = false) String assignedBy) {
         int successCount = testPlanTaskAssignService.batchAddAssigns(taskId, userIds, assignType, workload, assignedBy);
         return Resp.ok(successCount);
     }
@@ -174,7 +174,7 @@ public class TestPlanTaskAssignController {
      * @return 是否删除成功
      */
     @DeleteMapping("/deleteByTaskIdAndUserId")
-    public Resp deleteByTaskIdAndUserId(@RequestParam Long taskId, @RequestParam Long userId) {
+    public Resp deleteByTaskIdAndUserId(@RequestParam Long taskId, @RequestParam String userId) {
         boolean deleted = testPlanTaskAssignService.deleteByTaskIdAndUserId(taskId, userId);
         if (deleted) {
             return Resp.ok("删除成功");

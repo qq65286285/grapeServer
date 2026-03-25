@@ -39,6 +39,11 @@ public class TestPlanExecuteStep implements Serializable {
     private Long executeId;
 
     /**
+     * 快照步骤ID，关联到test_plan_case_snapshot_step表的ID
+     */
+    private Long snapshotStepId;
+
+    /**
      * 步骤序号
      */
     private Integer stepNo;

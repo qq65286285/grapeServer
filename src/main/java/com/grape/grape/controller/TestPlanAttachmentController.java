@@ -59,6 +59,34 @@ public class TestPlanAttachmentController {
     }
 
     /**
+     * 上传附件并返回文件ID
+     *
+     * @param file          文件
+     * @param planId        计划ID
+     * @param attachmentType 附件类型
+     * @param relatedId     关联对象ID
+     * @return Minio文件ID
+     */
+    @PostMapping("uploadAndReturnId")
+    public Resp uploadAndReturnId(@RequestParam("file") MultipartFile file,
+                                 @RequestParam("planId") Long planId,
+                                 @RequestParam("attachmentType") Integer attachmentType,
+                                 @RequestParam(value = "relatedId", required = false) Long relatedId) {
+        log.info("接收附件上传请求（返回ID），计划ID: {}，附件类型: {}", planId, attachmentType);
+        try {
+            String fileId = testPlanAttachmentService.uploadAndReturnFileId(file, planId, attachmentType, relatedId);
+            if (fileId != null) {
+                return Resp.ok(fileId);
+            } else {
+                return Resp.error();
+            }
+        } catch (Exception e) {
+            log.error("附件上传失败，错误信息: {}", e.getMessage(), e);
+            return Resp.error();
+        }
+    }
+
+    /**
      * 根据主键删除附件
      *
      * @param id 主键

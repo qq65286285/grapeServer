@@ -51,7 +51,7 @@ public interface TestPlanCaseSnapshotService extends MyBaseService<TestPlanCaseS
      * @param executorId 执行人ID
      * @return 快照列表
      */
-    java.util.List<TestPlanCaseSnapshot> listByExecutorId(Long planId, Long executorId);
+    java.util.List<TestPlanCaseSnapshot> listByExecutorId(Long planId, String executorId);
 
     /**
      * 更新执行状态
@@ -61,5 +61,15 @@ public interface TestPlanCaseSnapshotService extends MyBaseService<TestPlanCaseS
      * @param executorId   执行人ID
      * @return 是否更新成功
      */
-    boolean updateExecuteStatus(Long id, Integer executeStatus, Long executorId);
+    boolean updateExecuteStatus(Long id, Integer executeStatus, String executorId);
+
+    /**
+     * 批量绑定测试用例到测试计划
+     *
+     * @param planId 测试计划ID
+     * @param caseIds 测试用例ID列表
+     * @param executorId 执行人ID
+     * @return 绑定成功的数量
+     */
+    int batchBindCases(Long planId, java.util.List<Integer> caseIds, String executorId);
 }

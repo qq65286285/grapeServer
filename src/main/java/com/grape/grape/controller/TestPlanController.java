@@ -1,9 +1,15 @@
 package com.grape.grape.controller;
 
 import com.grape.grape.entity.TestPlan;
+import com.grape.grape.entity.TestPlanMember;
+import com.grape.grape.entity.TestPlanTask;
+import com.grape.grape.entity.TestPlanTaskAssign;
 import com.grape.grape.model.PageResp;
 import com.grape.grape.model.Resp;
+import com.grape.grape.service.TestPlanMemberService;
 import com.grape.grape.service.TestPlanService;
+import com.grape.grape.service.TestPlanTaskAssignService;
+import com.grape.grape.service.TestPlanTaskService;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +41,15 @@ public class TestPlanController {
 
     @Autowired
     private TestPlanService testPlanService;
+    
+    @Autowired
+    private TestPlanMemberService testPlanMemberService;
+    
+    @Autowired
+    private TestPlanTaskService testPlanTaskService;
+    
+    @Autowired
+    private TestPlanTaskAssignService testPlanTaskAssignService;
 
     /**
      * 添加测试计划。
@@ -213,5 +228,65 @@ public class TestPlanController {
 
         List<TestPlan> testPlans = testPlanService.list(queryWrapper);
         return Resp.ok(testPlans);
+    }
+
+    /**
+     * 分配测试计划给成员
+     */
+    @PostMapping("assign")
+    public Resp assign(@RequestBody Map<String, Object> params) {
+        try {
+            Long planId = Long.parseLong(params.get("planId").toString());
+            List<String> userIds = (List<String>) params.get("userIds");
+            String assignedBy = params.get("assignedBy").toString();
+
+            // 验证测试计划是否存在
+            TestPlan testPlan = testPlanService.getById(planId);
+            if (testPlan == null) {
+                return Resp.info(404, "测试计划不存在");
+            }
+
+            // 为每个成员添加到测试计划成员表
+            for (String userId : userIds) {
+                // 检查是否已经是成员
+                TestPlanMember existingMember = testPlanMemberService.getByPlanIdAndUserId(planId, userId);
+                if (existingMember == null) {
+                    TestPlanMember member = new TestPlanMember();
+                    member.setPlanId(planId);
+                    member.setUserId(userId);
+                    member.setRoleType(2); // 默认角色类型
+                    member.setStatus(1); // 默认状态
+                    member.setCreatedBy(assignedBy);
+                    testPlanMemberService.save(member);
+                }
+            }
+
+            // 获取测试计划下的所有任务
+            List<TestPlanTask> tasks = testPlanTaskService.listByPlanId(planId);
+
+            // 为每个任务分配给成员
+            for (TestPlanTask task : tasks) {
+                for (String userId : userIds) {
+                    // 检查是否已经分配
+                    List<TestPlanTaskAssign> existingAssigns = testPlanTaskAssignService.listByTaskIdAndAssignType(task.getId(), 1);
+                    boolean alreadyAssigned = false;
+                    for (TestPlanTaskAssign assign : existingAssigns) {
+                        if (assign.getUserId().equals(userId)) {
+                            alreadyAssigned = true;
+                            break;
+                        }
+                    }
+                    if (!alreadyAssigned) {
+                        testPlanTaskAssignService.batchAddAssigns(task.getId(), userIds, 1, 0.0, assignedBy);
+                        break; // 每个任务只分配一次
+                    }
+                }
+            }
+
+            return Resp.ok("分配成功");
+        } catch (Exception e) {
+            log.error("分配测试计划失败", e);
+            return Resp.error();
+        }
     }
 }

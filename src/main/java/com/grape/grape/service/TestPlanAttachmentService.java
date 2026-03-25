@@ -25,6 +25,28 @@ public interface TestPlanAttachmentService extends MyBaseService<TestPlanAttachm
     boolean upload(MultipartFile file, Long planId, Integer attachmentType, Long relatedId) throws IOException;
 
     /**
+     * 上传附件并返回文件ID
+     *
+     * @param file          文件
+     * @param planId        计划ID
+     * @param attachmentType 附件类型
+     * @param relatedId     关联对象ID
+     * @return 附件ID
+     */
+    Long uploadAndReturnId(MultipartFile file, Long planId, Integer attachmentType, Long relatedId) throws IOException;
+
+    /**
+     * 上传附件并返回Minio文件ID
+     *
+     * @param file          文件
+     * @param planId        计划ID
+     * @param attachmentType 附件类型
+     * @param relatedId     关联对象ID
+     * @return Minio文件ID
+     */
+    String uploadAndReturnFileId(MultipartFile file, Long planId, Integer attachmentType, Long relatedId) throws IOException;
+
+    /**
      * 下载附件
      *
      * @param id 附件ID

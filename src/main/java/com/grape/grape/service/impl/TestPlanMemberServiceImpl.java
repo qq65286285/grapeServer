@@ -1,9 +1,11 @@
 package com.grape.grape.service.impl;
 
 import com.grape.grape.component.UserUtils;
+import com.grape.grape.entity.TestPlan;
 import com.grape.grape.entity.TestPlanMember;
 import com.grape.grape.mapper.TestPlanMemberMapper;
 import com.grape.grape.service.TestPlanMemberService;
+import com.grape.grape.service.TestPlanService;
 import com.grape.grape.service.UserService;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -29,12 +31,71 @@ public class TestPlanMemberServiceImpl extends ServiceImpl<TestPlanMemberMapper,
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private com.grape.grape.service.TestPlanTaskAssignService testPlanTaskAssignService;
+
+    @Autowired
+    private com.grape.grape.service.TestPlanCaseSnapshotService testPlanCaseSnapshotService;
+
+    @Autowired
+    private TestPlanService testPlanService;
+
     @Override
     public List<TestPlanMember> listByPlanId(Long planId) {
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .where("plan_id = ? and is_deleted = 0", planId)
                 .orderBy("role_type asc, id asc");
-        return list(queryWrapper);
+        List<TestPlanMember> members = list(queryWrapper);
+        
+        // 动态计算每个成员的已分配用例数
+        for (TestPlanMember member : members) {
+            // 计算该成员在测试计划中的已分配用例数
+            int assignedCount = calculateAssignedCaseCount(planId, member.getUserId());
+            member.setAssignedCaseCount(assignedCount);
+            
+            // 计算该成员的已执行用例数
+            int executedCount = calculateExecutedCaseCount(planId, member.getUserId());
+            member.setExecutedCaseCount(executedCount);
+        }
+        
+        return members;
+    }
+
+    /**
+     * 计算指定成员在测试计划中的已分配用例数
+     *
+     * @param planId 测试计划ID
+     * @param userId 用户ID
+     * @return 已分配用例数
+     */
+    private int calculateAssignedCaseCount(Long planId, String userId) {
+        // 查询TestPlanCaseSnapshot表，统计该用户在该测试计划中被分配的用例数
+        java.util.List<com.grape.grape.entity.TestPlanCaseSnapshot> snapshots = testPlanCaseSnapshotService.listByExecutorId(planId, userId);
+        return snapshots != null ? snapshots.size() : 0;
+    }
+
+    /**
+     * 计算指定成员在测试计划中的已执行用例数
+     *
+     * @param planId 测试计划ID
+     * @param userId 用户ID
+     * @return 已执行用例数
+     */
+    private int calculateExecutedCaseCount(Long planId, String userId) {
+        // 查询TestPlanCaseSnapshot表，统计该用户在该测试计划中已执行的用例数
+        java.util.List<com.grape.grape.entity.TestPlanCaseSnapshot> snapshots = testPlanCaseSnapshotService.listByExecutorId(planId, userId);
+        if (snapshots == null) {
+            return 0;
+        }
+        
+        // 统计已执行的用例数（executeStatus != 0）
+        int executedCount = 0;
+        for (com.grape.grape.entity.TestPlanCaseSnapshot snapshot : snapshots) {
+            if (snapshot.getExecuteStatus() != null && snapshot.getExecuteStatus() != 0) {
+                executedCount++;
+            }
+        }
+        return executedCount;
     }
 
     @Override
@@ -46,7 +107,7 @@ public class TestPlanMemberServiceImpl extends ServiceImpl<TestPlanMemberMapper,
     }
 
     @Override
-    public List<TestPlanMember> listByUserId(Long userId) {
+    public List<TestPlanMember> listByUserId(String userId) {
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .where("user_id = ? and is_deleted = 0", userId)
                 .orderBy("plan_id asc, role_type asc");
@@ -54,14 +115,14 @@ public class TestPlanMemberServiceImpl extends ServiceImpl<TestPlanMemberMapper,
     }
 
     @Override
-    public TestPlanMember getByPlanIdAndUserId(Long planId, Long userId) {
+    public TestPlanMember getByPlanIdAndUserId(Long planId, String userId) {
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .where("plan_id = ? and user_id = ? and is_deleted = 0", planId, userId);
         return getOne(queryWrapper);
     }
 
     @Override
-    public Page<TestPlanMember> page(Page<TestPlanMember> page, Long planId, Long userId, Integer roleType, Integer status) {
+    public Page<TestPlanMember> page(Page<TestPlanMember> page, Long planId, String userId, Integer roleType, Integer status) {
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .where("is_deleted = 0");
 
@@ -87,7 +148,7 @@ public class TestPlanMemberServiceImpl extends ServiceImpl<TestPlanMemberMapper,
     }
 
     @Override
-    public boolean approveMember(Long id, Integer approveStatus, Long approveBy, String approveRemark) {
+    public boolean approveMember(Long id, Integer approveStatus, String approveBy, String approveRemark) {
         TestPlanMember member = getById(id);
         if (member != null) {
             member.setApproveStatus(approveStatus);
@@ -165,15 +226,10 @@ public class TestPlanMemberServiceImpl extends ServiceImpl<TestPlanMemberMapper,
         // 设置创建人和更新人
         String userIdStr = UserUtils.getCurrentLoginUserId(userService);
         if (userIdStr != null) {
-            try {
-                Long userId = Long.parseLong(userIdStr);
-                if (testPlanMember.getCreatedBy() == null) {
-                    testPlanMember.setCreatedBy(userId);
-                }
-                testPlanMember.setUpdatedBy(userId);
-            } catch (NumberFormatException e) {
-                log.warn("无法解析用户ID: {}", userIdStr);
+            if (testPlanMember.getCreatedBy() == null) {
+                testPlanMember.setCreatedBy(userIdStr);
             }
+            testPlanMember.setUpdatedBy(userIdStr);
         }
 
         return super.save(testPlanMember);
@@ -187,14 +243,39 @@ public class TestPlanMemberServiceImpl extends ServiceImpl<TestPlanMemberMapper,
         // 设置更新人
         String userIdStr = UserUtils.getCurrentLoginUserId(userService);
         if (userIdStr != null) {
-            try {
-                Long userId = Long.parseLong(userIdStr);
-                testPlanMember.setUpdatedBy(userId);
-            } catch (NumberFormatException e) {
-                log.warn("无法解析用户ID: {}", userIdStr);
-            }
+            testPlanMember.setUpdatedBy(userIdStr);
         }
 
         return super.updateById(testPlanMember);
+    }
+
+    @Override
+    public List<TestPlan> listMyPlans(String userId) {
+        // 1. 查询当前用户在测试计划成员表中的记录
+        QueryWrapper memberWrapper = QueryWrapper.create()
+                .where("user_id = ? and is_deleted = 0", userId);
+        List<TestPlanMember> members = list(memberWrapper);
+        
+        // 2. 收集测试计划ID
+        java.util.Set<Long> planIdSet = new java.util.HashSet<>();
+        for (TestPlanMember member : members) {
+            planIdSet.add(member.getPlanId());
+        }
+        
+        // 3. 查询对应的测试计划
+        if (planIdSet.isEmpty()) {
+            return new java.util.ArrayList<>();
+        }
+        
+        // 将Set转换为List，避免MyBatis-Plus处理Set参数的问题
+        java.util.List<Long> planIds = new java.util.ArrayList<>(planIdSet);
+        
+        // 使用与其他地方一致的方式创建查询条件
+        QueryWrapper planWrapper = QueryWrapper.create()
+                // .where("id in (?) and is_deleted = 0", planIds)
+                .in("id", planIds)
+                .eq("is_deleted", 0)
+                .orderBy("created_at desc");
+        return testPlanService.list(planWrapper);
     }
 }

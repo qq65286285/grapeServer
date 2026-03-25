@@ -31,17 +31,8 @@ public class CorsConfig implements  WebMvcConfigurer {
         public void addCorsMappings(CorsRegistry registry) {
             // 允许所有路径
             registry.addMapping("/**")
-                    // 允许前端的域名
-                    .allowedOrigins("http://127.0.0.1:8080")
-                    .allowedOrigins("http://127.0.0.1:8309")
-                    // 允许前端的域名
-                    .allowedOrigins("http://localhost:8080")
-                    .allowedOrigins("http://localhost:8309")
-                    .allowedOrigins("http://10.251.64.24:8080")
-                    // 允许前端的域名
-                    .allowedOrigins("http://192.168.23.168:8080")
-                    .allowedOriginPatterns("http://192.168.*.*:*", "https://192.168.*.*:*")
-                    .allowedOriginPatterns("http://*.*.*.*:*")
+                    // 允许所有域名
+                    .allowedOriginPatterns("*")
                     // 允许的 HTTP 方法
                     .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                     // 允许所有请求头
@@ -50,7 +41,7 @@ public class CorsConfig implements  WebMvcConfigurer {
                     .allowCredentials(true)
                     // 预检请求的缓存时间
                     .maxAge(3600);
-    }
+        }
 
 
     @Override

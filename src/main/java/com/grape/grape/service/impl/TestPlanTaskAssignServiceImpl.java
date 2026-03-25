@@ -39,7 +39,7 @@ public class TestPlanTaskAssignServiceImpl extends ServiceImpl<TestPlanTaskAssig
     }
 
     @Override
-    public List<TestPlanTaskAssign> listByUserId(Long userId) {
+    public List<TestPlanTaskAssign> listByUserId(String userId) {
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .where("user_id = ?", userId)
                 .orderBy("assigned_at desc");
@@ -63,7 +63,7 @@ public class TestPlanTaskAssignServiceImpl extends ServiceImpl<TestPlanTaskAssig
     }
 
     @Override
-    public Page<TestPlanTaskAssign> page(Page<TestPlanTaskAssign> page, Long taskId, Long userId, Integer assignType) {
+    public Page<TestPlanTaskAssign> page(Page<TestPlanTaskAssign> page, Long taskId, String userId, Integer assignType) {
         QueryWrapper queryWrapper = QueryWrapper.create();
 
         if (taskId != null) {
@@ -84,10 +84,10 @@ public class TestPlanTaskAssignServiceImpl extends ServiceImpl<TestPlanTaskAssig
     }
 
     @Override
-    public int batchAddAssigns(Long taskId, List<Long> userIds, Integer assignType, Double workload, Long assignedBy) {
+    public int batchAddAssigns(Long taskId, List<String> userIds, Integer assignType, Double workload, String assignedBy) {
         int successCount = 0;
         Date now = new Date();
-        for (Long userId : userIds) {
+        for (String userId : userIds) {
             // 检查是否已存在分配
             QueryWrapper checkWrapper = QueryWrapper.create()
                     .where("task_id = ? and user_id = ? and assign_type = ?", taskId, userId, assignType);
@@ -120,7 +120,7 @@ public class TestPlanTaskAssignServiceImpl extends ServiceImpl<TestPlanTaskAssig
     }
 
     @Override
-    public boolean deleteByTaskIdAndUserId(Long taskId, Long userId) {
+    public boolean deleteByTaskIdAndUserId(Long taskId, String userId) {
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .where("task_id = ? and user_id = ?", taskId, userId);
         List<TestPlanTaskAssign> assigns = list(queryWrapper);
@@ -173,15 +173,7 @@ public class TestPlanTaskAssignServiceImpl extends ServiceImpl<TestPlanTaskAssig
      *
      * @return 当前用户ID
      */
-    private Long getCurrentUserId() {
-        String userIdStr = UserUtils.getCurrentLoginUserId(userService);
-        if (userIdStr != null) {
-            try {
-                return Long.parseLong(userIdStr);
-            } catch (NumberFormatException e) {
-                log.warn("无法解析用户ID: {}", userIdStr);
-            }
-        }
-        return null;
+    private String getCurrentUserId() {
+        return UserUtils.getCurrentLoginUserId(userService);
     }
 }

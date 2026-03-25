@@ -1,8 +1,10 @@
 package com.grape.grape.service.impl;
 
+import com.grape.grape.component.FileVo;
 import com.grape.grape.component.UserUtils;
 import com.grape.grape.entity.TestPlanAttachment;
 import com.grape.grape.mapper.TestPlanAttachmentMapper;
+import com.grape.grape.service.MinioService;
 import com.grape.grape.service.TestPlanAttachmentService;
 import com.grape.grape.service.UserService;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
@@ -34,40 +36,42 @@ public class TestPlanAttachmentServiceImpl extends ServiceImpl<TestPlanAttachmen
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private MinioService minioService;
+
     // 附件存储路径
     private static final String ATTACHMENT_DIR = "attachments/test-plan";
 
     @Override
     public boolean upload(MultipartFile file, Long planId, Integer attachmentType, Long relatedId) throws IOException {
-        // 生成唯一文件名
+        return uploadAndReturnId(file, planId, attachmentType, relatedId) != null;
+    }
+
+    @Override
+    public Long uploadAndReturnId(MultipartFile file, Long planId, Integer attachmentType, Long relatedId) throws IOException {
+        // 上传文件到 Minio
+        FileVo fileVo = minioService.upload(file);
+        if (fileVo == null) {
+            log.error("文件上传到 Minio 失败");
+            return null;
+        }
+
+        // 生成文件类型
         String originalFilename = file.getOriginalFilename();
-        String fileExtension = originalFilename != null ? originalFilename.substring(originalFilename.lastIndexOf(".")) : "";
-        String fileName = UUID.randomUUID().toString() + fileExtension;
-
-        // 确保存储目录存在
-        Path storageDir = Paths.get(ATTACHMENT_DIR, String.valueOf(planId));
-        if (!Files.exists(storageDir)) {
-            Files.createDirectories(storageDir);
-        }
-
-        // 保存文件
-        Path filePath = storageDir.resolve(fileName);
-        try (InputStream inputStream = file.getInputStream()) {
-            Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
-        }
+        String fileType = originalFilename != null && originalFilename.contains(".") ? originalFilename.substring(originalFilename.lastIndexOf(".") + 1) : "";
 
         // 构建附件信息
         TestPlanAttachment attachment = TestPlanAttachment.builder()
                 .planId(planId)
                 .attachmentType(attachmentType)
                 .relatedId(relatedId)
-                .fileName(originalFilename)
+                .fileName(fileVo.getOldFileName())
                 .fileSize(file.getSize())
-                .fileType(fileExtension.substring(1)) // 去除点号
+                .fileType(fileType)
                 .mimeType(file.getContentType())
-                .storageType(1) // 1-本地存储
-                .storagePath(filePath.toString())
-                .fileUrl("/attachments/test-plan/" + planId + "/" + fileName)
+                .storageType(3) // 3-MinIO 存储
+                .storagePath(fileVo.getNewFileName())
+                .fileUrl(fileVo.getFileUrl())
                 .downloadCount(0)
                 .status(1) // 1-正常
                 .isDeleted(0) // 0-否
@@ -89,7 +93,64 @@ public class TestPlanAttachmentServiceImpl extends ServiceImpl<TestPlanAttachmen
         attachment.setUpdatedAt(now);
 
         // 保存到数据库
-        return save(attachment);
+        if (save(attachment)) {
+            return attachment.getId();
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    public String uploadAndReturnFileId(MultipartFile file, Long planId, Integer attachmentType, Long relatedId) throws IOException {
+        // 上传文件到 Minio
+        FileVo fileVo = minioService.upload(file);
+        if (fileVo == null) {
+            log.error("文件上传到 Minio 失败");
+            return null;
+        }
+
+        // 生成文件类型
+        String originalFilename = file.getOriginalFilename();
+        String fileType = originalFilename != null && originalFilename.contains(".") ? originalFilename.substring(originalFilename.lastIndexOf(".") + 1) : "";
+
+        // 构建附件信息
+        TestPlanAttachment attachment = TestPlanAttachment.builder()
+                .planId(planId)
+                .attachmentType(attachmentType)
+                .relatedId(relatedId)
+                .fileName(fileVo.getOldFileName())
+                .fileSize(file.getSize())
+                .fileType(fileType)
+                .mimeType(file.getContentType())
+                .storageType(3) // 3-MinIO 存储
+                .storagePath(fileVo.getNewFileName())
+                .fileUrl(fileVo.getFileUrl())
+                .downloadCount(0)
+                .status(1) // 1-正常
+                .isDeleted(0) // 0-否
+                .build();
+
+        // 设置上传人ID和时间
+        String uploaderIdStr = UserUtils.getCurrentLoginUserId(userService);
+        if (uploaderIdStr != null) {
+            try {
+                Long uploaderId = Long.parseLong(uploaderIdStr);
+                attachment.setCreatedBy(uploaderId);
+                attachment.setUpdatedBy(uploaderId);
+            } catch (NumberFormatException e) {
+                log.warn("无法解析用户ID: {}", uploaderIdStr);
+            }
+        }
+        long now = System.currentTimeMillis();
+        attachment.setCreatedAt(now);
+        attachment.setUpdatedAt(now);
+
+        // 保存到数据库
+        if (save(attachment)) {
+            return fileVo.getNewFileName(); // 返回 Minio 的文件ID
+        } else {
+            return null;
+        }
     }
 
     @Override

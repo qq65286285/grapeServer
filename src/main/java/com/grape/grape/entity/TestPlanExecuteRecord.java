@@ -65,7 +65,7 @@ public class TestPlanExecuteRecord implements Serializable {
     /**
      * 执行人ID
      */
-    private Long executorId;
+    private String executorId;
 
     /**
      * 执行时间(毫秒级时间戳)
