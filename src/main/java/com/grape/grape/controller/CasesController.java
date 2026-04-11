@@ -34,6 +34,9 @@ public class CasesController {
 
     @Autowired
     private CaseBizService caseBizService;
+    
+    @Autowired
+    private com.grape.grape.service.biz.CaseNumberGeneratorService caseNumberGeneratorService;
 
     /**
      * 添加测试用例表。
@@ -175,5 +178,15 @@ public class CasesController {
             return caseBizService.rollbackToVersion(params.get("caseId"), params.get("versionId"));
         }
         return Resp.info(400, "请求参数不能为空，且必须包含caseId和versionId");
+    }
+    
+    /**
+     * 生成测试用例编号
+     * @return 测试用例编号，格式：TC+年月日+4位编号
+     */
+    @GetMapping("generateCaseNumber")
+    public Resp generateCaseNumber() {
+        String caseNumber = caseNumberGeneratorService.generateCaseNumber();
+        return Resp.ok(caseNumber);
     }
 }

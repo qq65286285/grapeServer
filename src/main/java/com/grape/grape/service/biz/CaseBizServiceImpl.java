@@ -57,6 +57,9 @@ public class CaseBizServiceImpl implements CaseBizService {
     @Autowired
     private com.grape.grape.service.QdrantService qdrantService;
     
+    @Autowired
+    private CaseNumberGeneratorService caseNumberGeneratorService;
+    
     // 线程池用于异步同步操作
     private final ExecutorService syncExecutor = Executors.newFixedThreadPool(5);
 
@@ -65,6 +68,10 @@ public class CaseBizServiceImpl implements CaseBizService {
         if (caseRequest == null) {
             return Resp.info(400, "请求参数不能为空");
         }
+        
+        // 自动生成测试用例编号
+        String caseNumber = caseNumberGeneratorService.generateCaseNumber();
+        caseRequest.setCaseNumber(caseNumber);
         
         // 使用 CaseRequest 的转换方法构建测试用例对象
         Cases cases = caseRequest.toCases();
@@ -81,7 +88,7 @@ public class CaseBizServiceImpl implements CaseBizService {
             asyncSyncToVectorDb(cases.getId(), "add");
         }
         
-        return Resp.ok(saveResult);
+        return Resp.ok(cases);
     }
 
     @Override
@@ -292,6 +299,12 @@ public class CaseBizServiceImpl implements CaseBizService {
     public Resp updateCaseWithSteps(CaseRequest caseRequest) {
         if (caseRequest == null || caseRequest.getId() == null) {
             return Resp.info(400, "请求参数不能为空，且必须包含测试用例ID");
+        }
+        
+        // 获取原测试用例信息，保留原编号
+        Cases originalCase = casesService.getById(caseRequest.getId());
+        if (originalCase != null) {
+            caseRequest.setCaseNumber(originalCase.getCaseNumber());
         }
         
         // 使用 CaseRequest 的转换方法构建测试用例对象
