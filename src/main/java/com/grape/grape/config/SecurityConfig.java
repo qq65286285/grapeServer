@@ -59,9 +59,14 @@ public class SecurityConfig  extends WebSecurityConfigurerAdapter {
 
 
 
+    @Autowired
+    private HttpsRedirectFilter httpsRedirectFilter;
+
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.cors().and()  // 添加这行启用CORS
+            // 添加HTTPS重定向过滤器
+            .addFilterBefore(httpsRedirectFilter, UsernamePasswordAuthenticationFilter.class)
             // 禁用CSRF
             .csrf().disable()
             // 禁用session管理

@@ -31,7 +31,7 @@ public class CorsConfig implements  WebMvcConfigurer {
         public void addCorsMappings(CorsRegistry registry) {
             // 允许所有路径
             registry.addMapping("/**")
-                    // 允许所有域名
+                    // 允许所有域名，包括 HTTPS
                     .allowedOriginPatterns("*")
                     // 允许的 HTTP 方法
                     .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")

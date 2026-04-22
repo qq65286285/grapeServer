@@ -100,7 +100,7 @@ public class DatabaseSyncConfig {
 
                                 // 为test_plan_execute_step表添加snapshot_step_id字段
                                 try {
-                                    String alterTableSQL = "ALTER TABLE test_plan_execute_step ADD COLUMN IF NOT EXISTS snapshot_step_id BIGINT";
+                                    String alterTableSQL = "ALTER TABLE test_plan_execute_step ADD COLUMN snapshot_step_id BIGINT";
                                     statement.executeUpdate(alterTableSQL);
                                     System.out.println("✅ 成功为test_plan_execute_step表添加snapshot_step_id字段");
                                 } catch (SQLException e) {
