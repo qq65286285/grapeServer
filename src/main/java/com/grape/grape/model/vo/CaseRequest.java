@@ -9,6 +9,10 @@ import java.util.List;
  * 测试用例请求对象
  * 用于接收和处理测试用例相关的 HTTP 请求参数
  */
+
+import lombok.Data;
+
+@Data
 public class CaseRequest {
     private Integer id;
     private String caseNumber;
@@ -26,40 +30,6 @@ public class CaseRequest {
     private Long createdAt;
     private Long updatedAt;
     private String updatedBy;
-
-    // Getters and Setters
-    public Integer getId() { return id; }
-    public void setId(Integer id) { this.id = id; }
-    public String getCaseNumber() { return caseNumber; }
-    public void setCaseNumber(String caseNumber) { this.caseNumber = caseNumber; }
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
-    public Integer getPriority() { return priority; }
-    public void setPriority(Integer priority) { this.priority = priority; }
-    public Integer getStatus() { return status; }
-    public void setStatus(Integer status) { this.status = status; }
-    public Integer getVersion() { return version; }
-    public void setVersion(Integer version) { this.version = version; }
-    public Integer getEnvironmentId() { return environmentId; }
-    public void setEnvironmentId(Integer environmentId) { this.environmentId = environmentId; }
-    public String getModule() { return module; }
-    public void setModule(String module) { this.module = module; }
-    public Integer getFolderId() { return folderId; }
-    public void setFolderId(Integer folderId) { this.folderId = folderId; }
-    public String getRemark() { return remark; }
-    public void setRemark(String remark) { this.remark = remark; }
-    public List<TestCaseStep> getSteps() { return steps; }
-    public void setSteps(List<TestCaseStep> steps) { this.steps = steps; }
-    public String getCreatedBy() { return createdBy; }
-    public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
-    public Long getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Long createdAt) { this.createdAt = createdAt; }
-    public Long getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(Long updatedAt) { this.updatedAt = updatedAt; }
-    public String getUpdatedBy() { return updatedBy; }
-    public void setUpdatedBy(String updatedBy) { this.updatedBy = updatedBy; }
 
     /**
      * 转换为 Cases 实体对象（用于保存操作）

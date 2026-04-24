@@ -47,32 +47,19 @@ spring:
   # 数据库配置
   jpa:
     # 是否在启动时检查并同步数据库结构
-    auto-sync-schema: true
+    auto-sync-schema: false
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     driverClassName: com.mysql.cj.jdbc.Driver
     # url: jdbc:mysql://127.0.0.1:3306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
-    url: jdbc:mysql://127.0.0.1:3308/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
-    # url: jdbc:mysql://192.168.22.140:3306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
+    # url: jdbc:mysql://127.0.0.1:3308/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
+    url: jdbc:mysql://192.168.22.140:3306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
     username: root
     password: root
 
-  # 智谱API配置
-  zhijian:
-    api:
-      baseUrl: https://api.zhijian.com/v1
-      apiKey: e313bec625e746dc8b5402ac7038d5f4.8qt0x2N25LXiYCD2
-      timeout: 30000
 
-  ai:
-    ollama:
-      pull-model-strategy: always
-      timeout: 60s
-      max-retries: 1
-      base-url: http://127.0.0.1:11434
-      chat:
-        options:
-          model: deepseek-r1:1.5b
+
+
 logging:
   level:
     org:
@@ -128,29 +115,65 @@ screen-mirror:
   # 是否使用 ADB screenrecord（支持 Android 15）
   use-adb-screenrecord: true
 
-# 科大讯飞星火大模型配置
-xfyun:
-  spark:
-    host-url: "https://spark-api.xf-yun.com/v1/x1"
-    domain: "spark-x"
-    appid: "d2dd156b"
-    api-secret: "NGRjODRhZmE1OTcyY2VlNWM5OTVkYzRk"
-    api-key: "fea2b3c358dfea4e8754cb3730a42058"
-  # 星火文本向量配置
-  spark-emb:
-    appid: "d2dd156b"
-    api-secret: "NGRjODRhZmE1OTcyY2VlNWM5OTVkYzRk"
-    api-key: "fea2b3c358dfea4e8754cb3730a42058"
-    vector-url: "https://emb-cn-huabei-1.xf-yun.com/"
-
-# Qdrant配置
-# qdrant:
-#   host: localhost
-#   port: 6333
-  # api-key: qdrant123
-
-
-qdrant:
+# Milvus Configuration
+milvus:
   host: 192.168.22.140
-  port: 6333
-  # api-key: qdrant123
+  port: 19530
+  username: apiuser
+  password: apiuser
+  collection:
+    shards:
+      num: 2
+    vector:
+      field: embedding
+      dimension: 1024
+    primary:
+      key: id
+    varchar:
+      max:
+        length: 15000
+      medium:
+        length: 5000
+
+# Sirchmunk Configuration
+sirchmunk:
+  api:
+    key: ""
+  endpoint: "http://192.168.22.140:8584/api/v1/"
+  default:
+    path: "/home/sirchmunk/doc"
+
+# AI Model Configuration
+# ========================================# Ollama 模型配置# ========================================
+ollama:
+  host: localhost
+  port: 11434
+  base:
+    url: "http://localhost:11434"
+  api:
+    embeddings: "/api/embeddings"
+    generate: "/api/generate"
+    full:
+      url: "http://localhost:11434/api/embeddings"
+  embedding:
+    model: "bge-m3"
+    dimension: 1024
+  general:
+    model: "qwen2.5:7b"
+  timeout:
+    connect: 300000
+    read: 3000000
+    write: 300000
+  batch:
+    size: 32
+  max:
+    retries: 3
+
+# Excel处理配置
+excel:
+  process:
+    batch:
+      size: 10
+
+
+

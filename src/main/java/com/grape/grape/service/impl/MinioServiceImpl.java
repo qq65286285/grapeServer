@@ -13,7 +13,7 @@ public class MinioServiceImpl implements MinioService {
     
     @Autowired
     MinioTemplate minioTemplate;
-    @Value("${minio.bucketName:grape}")
+    @Value("${minio.bucketName}")
     private String bucketName;
     
     @Override

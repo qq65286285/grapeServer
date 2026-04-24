@@ -18,7 +18,7 @@ import java.sql.Statement;
 @Configuration
 public class DatabaseSyncConfig {
 
-    @Value("${spring.jpa.auto-sync-schema:false}")
+    @Value("${spring.jpa.auto-sync-schema}")
     private boolean autoSyncSchema;
 
     private final DataSource dataSource;

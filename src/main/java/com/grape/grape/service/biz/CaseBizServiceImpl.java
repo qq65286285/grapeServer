@@ -15,8 +15,6 @@ import com.grape.grape.service.CasesService;
 import com.grape.grape.service.TestCaseFolderService;
 import com.grape.grape.service.TestCaseStepService;
 import com.grape.grape.service.UserService;
-import com.grape.grape.service.CaseVectorSyncService;
-import com.grape.grape.service.biz.QdrantSyncBizService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -49,19 +47,7 @@ public class CaseBizServiceImpl implements CaseBizService {
     private UserService userService;
     
     @Autowired
-    private QdrantSyncBizService qdrantSyncBizService;
-    
-    @Autowired
-    private CaseVectorSyncService caseVectorSyncService;
-    
-    @Autowired
-    private com.grape.grape.service.QdrantService qdrantService;
-    
-    @Autowired
     private CaseNumberGeneratorService caseNumberGeneratorService;
-    
-    // 线程池用于异步同步操作
-    private final ExecutorService syncExecutor = Executors.newFixedThreadPool(5);
 
     @Override
     public Resp saveCase(CaseRequest caseRequest) {
@@ -83,10 +69,7 @@ public class CaseBizServiceImpl implements CaseBizService {
             testCaseStepService.saveSteps(cases.getId(), caseRequest.getSteps());
         }
         
-        // 异步同步到向量数据库
-        if (saveResult) {
-            asyncSyncToVectorDb(cases.getId(), "add");
-        }
+
         
         return Resp.ok(cases);
     }
@@ -129,10 +112,7 @@ public class CaseBizServiceImpl implements CaseBizService {
         // 执行物理删除测试用例
         boolean result = casesService.getMapper().deleteById(id) > 0;
         
-        // 异步从向量数据库中删除对应数据
-        if (result) {
-            asyncDeleteFromVectorDb(id);
-        }
+
         
         return Resp.ok(result);
     }
@@ -245,12 +225,7 @@ public class CaseBizServiceImpl implements CaseBizService {
         // 执行物理删除测试用例
         int result = casesService.getMapper().deleteBatchByIds(ids);
         
-        // 异步从向量数据库中删除对应数据
-        if (result > 0) {
-            for (Integer id : ids) {
-                asyncDeleteFromVectorDb(id);
-            }
-        }
+
         
         return Resp.ok(result > 0);
     }
@@ -287,10 +262,7 @@ public class CaseBizServiceImpl implements CaseBizService {
         
         boolean saveResult = testCaseStepService.saveSteps(caseId, steps);
         
-        // 异步同步到向量数据库
-        if (saveResult) {
-            asyncSyncToVectorDb(caseId, "update");
-        }
+
         
         return Resp.ok(saveResult);
     }
@@ -352,8 +324,7 @@ public class CaseBizServiceImpl implements CaseBizService {
             // 保存测试用例
             casesService.save(cases);
             
-            // 异步同步到向量数据库
-            asyncSyncToVectorDb(cases.getId(), "add");
+
             
             return Resp.info(ResultEnumI18n.SUCCESS);
         }
@@ -400,8 +371,7 @@ public class CaseBizServiceImpl implements CaseBizService {
         
         casesService.updateById(cases);
         
-        // 异步同步到向量数据库
-        asyncSyncToVectorDb(cases.getId(), "update");
+
         
         return Resp.info(ResultEnumI18n.SUCCESS);
     }
@@ -491,115 +461,10 @@ public class CaseBizServiceImpl implements CaseBizService {
         }
         log.info("步骤回滚完成");
         
-        // 异步同步到向量数据库
-        asyncSyncToVectorDb(caseId, "rollback");
+
         
         return Resp.info(ResultEnumI18n.SUCCESS);
     }
     
-    /**
-     * 异步同步测试用例到向量数据库
-     * @param testCaseId 测试用例ID
-     * @param businessType 业务类型：add-新增，update-修改，delete-删除，rollback-回滚
-     */
-    private void asyncSyncToVectorDb(Integer testCaseId, String businessType) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                log.info("开始异步同步测试用例到向量数据库，testCaseId: {}, businessType: {}", testCaseId, businessType);
-                
-                // 1. 处理测试用例向量化
-                Map<String, Object> syncResult = qdrantSyncBizService.processSingleTestCase(testCaseId);
-                
-                // 2. 更新同步状态
-                boolean success = (Boolean) syncResult.getOrDefault("success", false);
-                String message = (String) syncResult.getOrDefault("message", "");
-                
-                // 3. 保存同步状态到数据库
-                com.grape.grape.entity.CaseVectorSync syncRecord = new com.grape.grape.entity.CaseVectorSync();
-                syncRecord.setTestCaseId(testCaseId);
-                syncRecord.setSyncStatus(success ? 1 : 2); // 1-成功，2-失败
-                syncRecord.setSyncMessage(message);
-                syncRecord.setSyncTime(System.currentTimeMillis());
-                syncRecord.setRetryCount(0);
-                syncRecord.setBusinessType(businessType);
-                syncRecord.setCreatedAt(System.currentTimeMillis());
-                syncRecord.setUpdatedAt(System.currentTimeMillis());
-                
-                caseVectorSyncService.saveOrUpdate(syncRecord);
-                
-                log.info("测试用例同步到向量数据库完成，testCaseId: {}, businessType: {}, success: {}, message: {}", 
-                        testCaseId, businessType, success, message);
-                
-            } catch (Exception e) {
-                log.error("同步测试用例到向量数据库时发生异常，testCaseId: {}, businessType: {}", testCaseId, businessType, e);
-                
-                // 记录失败状态
-                try {
-                    com.grape.grape.entity.CaseVectorSync syncRecord = new com.grape.grape.entity.CaseVectorSync();
-                    syncRecord.setTestCaseId(testCaseId);
-                    syncRecord.setSyncStatus(2); // 2-失败
-                    syncRecord.setSyncMessage("同步异常: " + e.getMessage());
-                    syncRecord.setSyncTime(System.currentTimeMillis());
-                    syncRecord.setRetryCount(0);
-                    syncRecord.setBusinessType(businessType);
-                    syncRecord.setCreatedAt(System.currentTimeMillis());
-                    syncRecord.setUpdatedAt(System.currentTimeMillis());
-                    
-                    caseVectorSyncService.saveOrUpdate(syncRecord);
-                } catch (Exception ex) {
-                    log.error("记录同步失败状态时发生异常", ex);
-                }
-            }
-        }, syncExecutor);
-    }
-    
-    /**
-     * 异步从向量数据库中删除测试用例数据
-     * @param testCaseId 测试用例ID
-     */
-    private void asyncDeleteFromVectorDb(Integer testCaseId) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                log.info("开始异步从向量数据库中删除测试用例，testCaseId: {}", testCaseId);
-                
-                // 1. 从向量数据库中删除对应数据
-                boolean deleteSuccess = qdrantService.deletePoint("test_case_memory", testCaseId);
-                
-                // 2. 记录删除操作的同步状态
-                com.grape.grape.entity.CaseVectorSync syncRecord = new com.grape.grape.entity.CaseVectorSync();
-                syncRecord.setTestCaseId(testCaseId);
-                syncRecord.setSyncStatus(deleteSuccess ? 1 : 2); // 1-成功，2-失败
-                syncRecord.setSyncMessage(deleteSuccess ? "删除成功" : "删除失败");
-                syncRecord.setSyncTime(System.currentTimeMillis());
-                syncRecord.setRetryCount(0);
-                syncRecord.setBusinessType("delete");
-                syncRecord.setCreatedAt(System.currentTimeMillis());
-                syncRecord.setUpdatedAt(System.currentTimeMillis());
-                
-                caseVectorSyncService.save(syncRecord);
-                
-                log.info("从向量数据库中删除测试用例完成，testCaseId: {}, success: {}", testCaseId, deleteSuccess);
-                
-            } catch (Exception e) {
-                log.error("从向量数据库中删除测试用例时发生异常，testCaseId: {}", testCaseId, e);
-                
-                // 记录失败状态
-                try {
-                    com.grape.grape.entity.CaseVectorSync syncRecord = new com.grape.grape.entity.CaseVectorSync();
-                    syncRecord.setTestCaseId(testCaseId);
-                    syncRecord.setSyncStatus(2); // 2-失败
-                    syncRecord.setSyncMessage("删除异常: " + e.getMessage());
-                    syncRecord.setSyncTime(System.currentTimeMillis());
-                    syncRecord.setRetryCount(0);
-                    syncRecord.setBusinessType("delete");
-                    syncRecord.setCreatedAt(System.currentTimeMillis());
-                    syncRecord.setUpdatedAt(System.currentTimeMillis());
-                    
-                    caseVectorSyncService.save(syncRecord);
-                } catch (Exception ex) {
-                    log.error("记录删除失败状态时发生异常", ex);
-                }
-            }
-        }, syncExecutor);
-    }
+
 }
