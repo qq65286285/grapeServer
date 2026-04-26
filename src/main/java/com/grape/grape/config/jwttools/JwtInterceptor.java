@@ -1,5 +1,7 @@
 package com.grape.grape.config.jwttools;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -12,16 +14,18 @@ import javax.servlet.http.HttpServletResponse;
  */
 @Component
 public class JwtInterceptor implements HandlerInterceptor {
+
+    private static final Logger logger = LoggerFactory.getLogger(JwtInterceptor.class);
     
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         // 获取请求路径
         String requestURI = request.getRequestURI();
-        System.out.println("请求路径: " + requestURI);
+        logger.debug("请求路径: {}", requestURI);
         
         // 豁免路径：不需要校验token的接口
         if (requestURI.equals("/api/") || requestURI.equals("/api") || requestURI.startsWith("/api/user/register") || requestURI.startsWith("/api/auth/login") || requestURI.startsWith("/api/captcha/") || requestURI.startsWith("/auth/login") || requestURI.startsWith("/regedit") || requestURI.startsWith("/api/regedit") || requestURI.startsWith("/api/mirror/") || requestURI.startsWith("/screen/") || requestURI.startsWith("/api/screen/") || requestURI.equals("/api/screen-mirror.html") || requestURI.startsWith("/api/ai/") || requestURI.equals("/ws") || requestURI.startsWith("/api/upload") || requestURI.equals("/api/error") || requestURI.startsWith("/api/public")) {
-            System.out.println("豁免路径，直接放行: " + requestURI);
+            logger.debug("豁免路径，直接放行: {}", requestURI);
             return true;
         }
         
@@ -30,13 +34,13 @@ public class JwtInterceptor implements HandlerInterceptor {
             requestURI.startsWith("/api/v2/api-docs") || requestURI.startsWith("/api/doc.html") || 
             requestURI.startsWith("/api/webjars/") || requestURI.startsWith("/api/v3/api-docs") ||
             requestURI.startsWith("/api/v3/api-docs/") || requestURI.startsWith("/api/swagger-ui.html")) {
-            System.out.println("Swagger路径，直接放行: " + requestURI);
+            logger.debug("Swagger路径，直接放行: {}", requestURI);
             return true;
         }
         
         // 获取Authorization头
         String authorizationHeader = request.getHeader("Authorization");
-        System.out.println("Authorization头: " + authorizationHeader);
+        logger.debug("Authorization头: {}", authorizationHeader);
         
         // 检查是否有Authorization头且以Bearer开头
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
@@ -45,14 +49,14 @@ public class JwtInterceptor implements HandlerInterceptor {
             
             // 验证token有效性（这里需要您实现具体的JWT验证逻辑）
             if (isValidToken(token)) {
-                System.out.println("Token有效，放行请求: " + requestURI);
+                logger.debug("Token有效，放行请求: {}", requestURI);
                 // token有效，放行请求
                 return true;
             } else {
-                System.out.println("Token无效: " + requestURI);
+                logger.debug("Token无效: {}", requestURI);
             }
         } else {
-            System.out.println("没有有效的Authorization头: " + requestURI);
+            logger.debug("没有有效的Authorization头: {}", requestURI);
         }
         
         // token无效或缺失，返回401

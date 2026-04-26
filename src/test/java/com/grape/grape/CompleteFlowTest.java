@@ -65,7 +65,7 @@ public class CompleteFlowTest {
      * @return 测试场景字符串
      */
     public String generateTestScenario(String testObject, String loginMethod, String testType, String flowType) {
-        return "测试" + testObject + " SDK的用户认证-登录功能，使用" + loginMethod + "方式，进行" + 
+        return "测试" + testObject + " ，使用" + loginMethod + "方式，进行" + 
         testType + "测试，验证" + flowType + "下的登录行为是否符合预期";
     }
 

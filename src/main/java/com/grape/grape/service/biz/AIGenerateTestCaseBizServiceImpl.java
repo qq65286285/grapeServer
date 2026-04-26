@@ -124,7 +124,7 @@ public class AIGenerateTestCaseBizServiceImpl implements AIGenerateTestCaseBizSe
      */
     private String generateTestCasesFromRequest(TestCaseGeneratorRequest request) {
         String prompt = promptEngineeringService.generateTestCaseGenerationPrompt(request);
-
+        // System.out.println("prompt: "+prompt);
         try {
             String response = ollamaGeneralService.generateText(prompt);
             return response;
