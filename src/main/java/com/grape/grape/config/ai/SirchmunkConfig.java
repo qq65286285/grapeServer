@@ -1,4 +1,4 @@
-package com.grape4j.config;
+package com.grape.grape.config.ai;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

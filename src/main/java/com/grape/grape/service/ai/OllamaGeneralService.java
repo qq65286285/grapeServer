@@ -107,7 +107,6 @@ public class OllamaGeneralService {
             requestBody.put("stream", false);
             // requestBody.put("format", "json");
             requestBody.put("options", options);
-
             // 发送请求
             System.out.println("-----------------");
             System.out.println("Request Body: " + JSONUtil.toJsonPrettyStr(requestBody));
