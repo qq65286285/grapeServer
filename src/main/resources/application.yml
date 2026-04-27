@@ -159,7 +159,7 @@ ollama:
     model: "bge-m3"
     dimension: 1024
   general:
-    model: "qwen2.5:7b"
+    model: "qwen3.5:latest"
   timeout:
     connect: 300000
     read: 3000000

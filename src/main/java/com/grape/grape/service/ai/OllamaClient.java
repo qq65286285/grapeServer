@@ -74,7 +74,9 @@ public class OllamaClient {
 
             org.springframework.http.ResponseEntity<String> responseEntity =
                 restTemplate.exchange(url, org.springframework.http.HttpMethod.POST, requestEntity, String.class);
-
+            System.out.println("-----------------");
+            System.out.println("Response: " + JSONUtil.toJsonPrettyStr(responseEntity));
+            System.out.println("-----------------");
             return responseEntity.getBody();
         } catch (Exception e) {
             throw new RuntimeException("Error sending sync request to Ollama API: " + e.getMessage(), e);

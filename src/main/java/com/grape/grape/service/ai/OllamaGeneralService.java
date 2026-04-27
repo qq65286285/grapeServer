@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -93,15 +94,24 @@ public class OllamaGeneralService {
      */
     public String generateText(String prompt) {
         try {
+            Map<String, Object> options = new HashMap<>();
+            options.put("num_predict", 4096);
+            options.put("temperature", 0.7);
+            options.put("repeat_penalty", 1.0);
+            options.put("stop", new ArrayList<>());
+
             // 构建请求体
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", generalModel);
             requestBody.put("prompt", prompt);
             requestBody.put("stream", false);
             // requestBody.put("format", "json");
+            requestBody.put("options", options);
 
-            
             // 发送请求
+            System.out.println("-----------------");
+            System.out.println("Request Body: " + JSONUtil.toJsonPrettyStr(requestBody));
+            System.out.println("-----------------");
             System.out.println("Sending request to Ollama API...   " + DateTime.now().toString(DatePattern.NORM_DATETIME_PATTERN));
             String response = ollamaClient.withRetry(() -> 
                 ollamaClient.sendSyncRequest(ollamaApiGenerate, requestBody)
@@ -111,7 +121,7 @@ public class OllamaGeneralService {
             // 解析响应
             JSONObject jsonResponse = ollamaClient.parseJsonResponse(response);
             String content = jsonResponse.getStr("response");
-            
+
             return content;
         } catch (Exception e) {
             System.out.println("Error generating text: " + e.getMessage());
