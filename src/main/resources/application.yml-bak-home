@@ -11,6 +11,11 @@ server:
   servlet:
     # 应用的访问路径
     context-path: /api
+    # 编码配置
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
   tomcat:
     # tomcat的URI编码
     uri-encoding: UTF-8
@@ -48,12 +53,21 @@ spring:
   jpa:
     # 是否在启动时检查并同步数据库结构
     auto-sync-schema: false
+  # HTTP编码配置
+  http:
+    encoding:
+      enabled: true
+      charset: UTF-8
+      force: true
+      force-request: true
+      force-response: true
+  
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     driverClassName: com.mysql.cj.jdbc.Driver
     # url: jdbc:mysql://127.0.0.1:3306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
-    # url: jdbc:mysql://127.0.0.1:3308/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
-    url: jdbc:mysql://192.168.22.140:3306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
+    url: jdbc:mysql://127.0.0.1:3308/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
+    # url: jdbc:mysql://192.168.22.140:3306/grape?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
     username: root
     password: root
 
@@ -79,17 +93,17 @@ logging:
             QueryWrapper: DEBUG
 
 # Minio 配置
-minio:
-  url: http://192.168.22.140:9000
-  accessKey: admin
-  secretKey: minio123456
-  bucketName: grape
-
 # minio:
-#   url: http://127.0.0.1:9000
+#   url: http://192.168.22.140:9000
 #   accessKey: admin
-#   secretKey:  admin123456
+#   secretKey: minio123456
 #   bucketName: grape
+
+minio:
+  url: http://127.0.0.1:9000
+  accessKey: minioadmin
+  secretKey:  minioadmin
+  bucketName: grape
 
 # 投屏功能配置（USB连接低延迟优化）
 screen-mirror:
@@ -116,6 +130,7 @@ screen-mirror:
   use-adb-screenrecord: true
 
 # Milvus Configuration
+# http://localhost:3000/
 milvus:
   host: 192.168.22.140
   port: 19530
@@ -136,10 +151,11 @@ milvus:
         length: 5000
 
 # Sirchmunk Configuration
+# http://localhost:8584/
 sirchmunk:
   api:
     key: ""
-  endpoint: "http://192.168.22.140:8584/api/v1/"
+  endpoint: "http://localhost:8584/api/v1/"
   default:
     path: "/home/sirchmunk/doc"
 
@@ -159,7 +175,7 @@ ollama:
     model: "bge-m3"
     dimension: 1024
   general:
-    model: "qwen2.5:7b"
+    model: "qwen3.5:latest"
   timeout:
     connect: 300000
     read: 3000000
